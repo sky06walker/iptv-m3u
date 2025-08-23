@@ -29,6 +29,7 @@ export default {
             'children': 'Kids', 'documentary': 'Documentary', 'lifestyle': 'Lifestyle',
             'entertainment': 'Entertainment', 'comedy': 'Comedy', 'series': 'Series',
             'education': 'Education', 'local': 'Local', 'religion': 'Religious', 'shop': 'Shopping',
+            'Undefined': 'Others',
           };
           for (const key in categoryMap) {
             if (g.includes(key)) return categoryMap[key];
@@ -290,4 +291,5 @@ export default {
 
     return env.ASSETS.fetch(request);
   }
+
 };
