@@ -1,8 +1,138 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>M3U Merger</title>
-<h1>M3U Merger (Cloudflare Pages)</h1>
-<p>Health check: <a href="/hello">/hello</a></p>
-<p>Merged playlist (All Channels): <a href="/merged.m3u">/merged.m3u</a></p>
-<p>Chinese playlist (Only Chinese): <a href="/chinese.m3u">/chinese.m3u</a></p>
-<p>Debug view: <a href="/merged.m3u?debug=1">/merged.m3u?debug=1</a></p>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>M3U Playlist Forge</title>
+  <style>
+    :root {
+      --bg-color: #121212;
+      --card-color: #1e1e1e;
+      --text-color: #e0e0e0;
+      --primary-color: #F38020; /* Cloudflare Orange */
+      --border-color: #333;
+    }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+      box-sizing: border-box;
+    }
+    .container {
+      max-width: 800px;
+      width: 100%;
+      text-align: center;
+    }
+    header h1 {
+      font-size: 2.5rem;
+      color: var(--primary-color);
+      margin-bottom: 0.5rem;
+    }
+    header p {
+      font-size: 1.2rem;
+      opacity: 0.8;
+      margin-top: 0;
+    }
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 3rem;
+    }
+    .card {
+      background-color: var(--card-color);
+      border-radius: 12px;
+      padding: 2rem;
+      border: 1px solid var(--border-color);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+      border-color: var(--primary-color);
+    }
+    .card h2 {
+      margin-top: 0;
+      font-size: 1.5rem;
+    }
+    .card p {
+      opacity: 0.7;
+      min-height: 40px;
+    }
+    .card .button {
+      display: inline-block;
+      background-color: var(--primary-color);
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+      transition: background-color 0.2s ease;
+    }
+    .card .button:hover {
+      background-color: #d86e18;
+    }
+    footer {
+      margin-top: 4rem;
+      opacity: 0.6;
+    }
+    footer a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>🚀 M3U Playlist Forge</h1>
+      <p>Your playlists, but smarter. Merged, cleaned, and ready to go!</p>
+    </header>
+
+    <div class="card-grid">
+      <!-- Merged Playlist Card -->
+      <div class="card">
+        <h2>The Ultimate Playlist ✨</h2>
+        <p>All channels from every source, merged and de-duplicated for the best experience.</p>
+        <a href="/merged.m3u" class="button">Get Merged Playlist</a>
+      </div>
+
+      <!-- Chinese Playlist Card -->
+      <div class="card">
+        <h2>Just the Chinese Channels 🇨🇳</h2>
+        <p>A special playlist filtered to include only high-quality Chinese content.</p>
+        <a href="/chinese.m3u" class="button">Get Chinese Playlist</a>
+      </div>
+
+      <!-- Debug Card -->
+      <div class="card">
+        <h2>Peek Behind the All Channel Curtain 🔬</h2>
+        <p>See a full directory of all channels and stats on how your list was built.</p>
+        <a href="/merged.m3u?debug=1" class="button">View Debug Directory</a>
+      </div>
+
+      <!-- Debug Chinese Card -->
+      <div class="card">
+        <h2>Peek Behind the Chinese Curtain 🔬</h2>
+        <p>See a full directory of Chinese channels ONLY and stats on how your list was built.</p>
+        <a href="/chinese.m3u?debug=1" class="button">View Debug Directory</a>
+      </div>
+    </div>
+
+    <footer>
+      <p>Worker Status: <a href="/hello">✅ Online</a></p>
+      <p>Powered by Cloudflare Pages. View on <a href="https://github.com/YOUR_USERNAME/YOUR_REPO" target="_blank">GitHub</a></p>
+    </footer>
+  </div>
+
+</body>
+</html>
