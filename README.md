@@ -26,8 +26,22 @@ Once deployed to your Cloudflare Pages project, you can access the following end
     *   Provides the main playlist with all channels from the configured sources, after merging, deduplication, and standardization.
 *   `/chinese.m3u`
     *   Delivers a filtered playlist containing only channels identified as Chinese.
-*   `/merged.m3u?debug=1`
-    *   Accesses the debug mode for the merged playlist. This returns a text file with detailed statistics and a full channel directory, showing how each channel was processed and what number it was assigned.
+
+### 🔬 How to Access the Debug Directory
+
+To understand how the script is processing your channels, you can access a detailed debug page. This page provides a complete directory of all processed channels, statistics on channel number assignment, and a detailed breakdown of the first few entries.
+
+**To activate the debug mode, add `?debug=1` to the end of any playlist URL.**
+
+*   **Example for the merged playlist:**
+    *   `/merged.m3u?debug=1`
+    *   `/chinese.m3u?debug=1`
+
+The debug output is a plain text file that includes:
+*   **Playlist Statistics**: Total sources, raw entry count, and the final count after deduplication.
+*   **Complete Channel Directory**: A numbered list of every single channel in the final playlist, showing its assigned channel number, name, and final group.
+*   **Channel Assignment Statistics**: Data on how many channels kept their original number versus how many were assigned a new one.
+*   **Detailed Sample**: A comprehensive look at the first 10 channels, showing all their original and final attributes.
 
 ## 🛠️ How It Works
 
@@ -56,8 +70,7 @@ This project is designed to be deployed as a single script using the "advanced" 
     *   Deploy the project.
 5.  **Enable Advanced Mode**:
     *   After the initial deployment, go to your project's **Settings** > **Functions**.
-    *   Under **Functions compatibility flags**, ensure you have `nodejs_compat` enabled if you plan to extend functionality with Node.js APIs.
-    *   The worker will be active and listening for requests to the defined paths.
+    *   The `_worker.js` file will be automatically detected and used to handle requests.
 
 ## 🔧 Customization
 
