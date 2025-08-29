@@ -14,12 +14,30 @@ export default {
         const debug = url.searchParams.get('debug');
         const isChineseOnly = url.pathname === '/chinese.m3u';
 
-        const SOURCES = [
-          'https://aktv.space/live.m3u',
-          'https://iptv-org.github.io/iptv/index.m3u',
-          'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u'
-        ];
-        const PRIMARY_CHINESE_SOURCE = 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u';
+        // Configuration can be updated via URL parameters for flexibility
+        const configParam = url.searchParams.get('config');
+        let config = {
+          sources: [
+            'https://aktv.space/live.m3u',
+            'https://iptv-org.github.io/iptv/index.m3u',
+            'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u'
+          ],
+          primaryChineseSource: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u'
+        };
+        
+        // Allow updating configuration via URL parameter (base64 encoded JSON)
+        if (configParam) {
+          try {
+            const decodedConfig = JSON.parse(atob(configParam));
+            if (decodedConfig.sources) config.sources = decodedConfig.sources;
+            if (decodedConfig.primaryChineseSource) config.primaryChineseSource = decodedConfig.primaryChineseSource;
+          } catch (e) {
+            console.warn('Invalid config parameter:', e);
+          }
+        }
+        
+        const SOURCES = config.sources;
+        const PRIMARY_CHINESE_SOURCE = config.primaryChineseSource;
         const HEADER = '#EXTM3U';
 
         const standardizeCategory = (group) => {
@@ -178,7 +196,9 @@ export default {
         let all = responses.flatMap(res => parseM3U(res.text, res.source));
 
         all.forEach(e => {
+            // 使用更全面的中文字符范围匹配
             const hasChineseChars = /[\u4e00-\u9fa5]/.test(e.name);
+            // 确保正确比较源URL，使用严格相等
             const isFromPrimarySource = e.source === PRIMARY_CHINESE_SOURCE;
             if (isFromPrimarySource || hasChineseChars) {
                 e.isDesignatedChinese = true;

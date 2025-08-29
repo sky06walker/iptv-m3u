@@ -88,6 +88,113 @@
     footer a:hover {
       text-decoration: underline;
     }
+    /* Config Generator Styles */
+    .config-section {
+      margin-top: 4rem;
+      background-color: var(--card-color);
+      border-radius: 12px;
+      padding: 2rem;
+      border: 1px solid var(--border-color);
+      text-align: left;
+    }
+    .config-section h2 {
+      text-align: center;
+      margin-top: 0;
+      color: var(--primary-color);
+    }
+    .config-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .form-group label {
+      font-weight: bold;
+    }
+    .form-group input {
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background-color: #2a2a2a;
+      color: var(--text-color);
+    }
+    .source-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .source-item {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .source-item input {
+      flex: 1;
+    }
+    .source-item button {
+      background-color: #ff4d4d;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 0 10px;
+      cursor: pointer;
+    }
+    .add-source-btn {
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px;
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+    .generate-btn {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-top: 1rem;
+    }
+    .result-section {
+      margin-top: 2rem;
+      display: none;
+    }
+    .result-section h3 {
+      margin-top: 0;
+    }
+    .result-links {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .result-link {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .result-link input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background-color: #2a2a2a;
+      color: var(--text-color);
+    }
+    .copy-btn {
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -128,11 +235,153 @@
       </div>
     </div>
 
+    <!-- Config Generator Section -->
+    <div class="config-section">
+      <h2>📱 Mobile Configuration Generator</h2>
+      <p>Update your M3U sources without changing code in GitHub. Generate custom URLs that you can bookmark on your phone.</p>
+      
+      <div class="config-form">
+        <div class="form-group">
+          <label for="primary-chinese">Primary Chinese Source URL:</label>
+          <input type="text" id="primary-chinese" placeholder="Enter the primary Chinese source URL">
+        </div>
+        
+        <div class="form-group">
+          <label>All Sources:</label>
+          <div class="source-list" id="source-list">
+            <div class="source-item">
+              <input type="text" class="source-input" placeholder="Enter source URL">
+              <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
+            </div>
+          </div>
+          <button class="add-source-btn" onclick="addSource()">+ Add Source</button>
+        </div>
+        
+        <button class="generate-btn" onclick="generateConfig()">Generate Custom URLs</button>
+      </div>
+      
+      <div class="result-section" id="result-section">
+        <h3>Your Custom URLs:</h3>
+        <p>Bookmark these links on your phone for easy access:</p>
+        
+        <div class="result-links">
+          <div class="result-link">
+            <label>Merged Playlist:</label>
+            <input type="text" id="merged-url" readonly>
+            <button class="copy-btn" onclick="copyToClipboard('merged-url')">Copy</button>
+          </div>
+          
+          <div class="result-link">
+            <label>Chinese Playlist:</label>
+            <input type="text" id="chinese-url" readonly>
+            <button class="copy-btn" onclick="copyToClipboard('chinese-url')">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <footer>
       <p>Worker Status: <a href="/hello">✅ Online</a></p>
       <p>Powered by Cloudflare Pages. View on <a href="https://github.com/YOUR_USERNAME/YOUR_REPO" target="_blank">GitHub</a></p>
     </footer>
   </div>
 
+  <script>
+    // Add a new source input field
+    function addSource() {
+      const sourceList = document.getElementById('source-list');
+      const sourceItem = document.createElement('div');
+      sourceItem.className = 'source-item';
+      sourceItem.innerHTML = `
+        <input type="text" class="source-input" placeholder="Enter source URL">
+        <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
+      `;
+      sourceList.appendChild(sourceItem);
+    }
+    
+    // Remove a source input field
+    function removeSource(button) {
+      const sourceItem = button.parentElement;
+      const sourceList = sourceItem.parentElement;
+      if (sourceList.children.length > 1) {
+        sourceList.removeChild(sourceItem);
+      } else {
+        sourceItem.querySelector('input').value = '';
+      }
+    }
+    
+    // Generate configuration URLs
+    function generateConfig() {
+      const primaryChineseSource = document.getElementById('primary-chinese').value.trim();
+      const sourceInputs = document.querySelectorAll('.source-input');
+      const sources = [];
+      
+      sourceInputs.forEach(input => {
+        const url = input.value.trim();
+        if (url) {
+          sources.push(url);
+        }
+      });
+      
+      if (!primaryChineseSource && sources.length === 0) {
+        alert('Please enter at least one source URL');
+        return;
+      }
+      
+      const config = {};
+      if (primaryChineseSource) {
+        config.primaryChineseSource = primaryChineseSource;
+      }
+      if (sources.length > 0) {
+        config.sources = sources;
+      }
+      
+      const configBase64 = btoa(JSON.stringify(config));
+      const baseUrl = window.location.origin;
+      
+      document.getElementById('merged-url').value = `${baseUrl}/merged.m3u?config=${configBase64}`;
+      document.getElementById('chinese-url').value = `${baseUrl}/chinese.m3u?config=${configBase64}`;
+      
+      document.getElementById('result-section').style.display = 'block';
+    }
+    
+    // Copy URL to clipboard
+    function copyToClipboard(elementId) {
+      const element = document.getElementById(elementId);
+      element.select();
+      document.execCommand('copy');
+      
+      const button = element.nextElementSibling;
+      const originalText = button.textContent;
+      button.textContent = 'Copied!';
+      setTimeout(() => {
+        button.textContent = originalText;
+      }, 2000);
+    }
+    
+    // Initialize with default sources
+    window.onload = function() {
+      const defaultSources = [
+        'https://aktv.space/live.m3u',
+        'https://iptv-org.github.io/iptv/index.m3u',
+        'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u'
+      ];
+      
+      document.getElementById('primary-chinese').value = 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u';
+      
+      const sourceList = document.getElementById('source-list');
+      sourceList.innerHTML = '';
+      
+      defaultSources.forEach(source => {
+        const sourceItem = document.createElement('div');
+        sourceItem.className = 'source-item';
+        sourceItem.innerHTML = `
+          <input type="text" class="source-input" placeholder="Enter source URL" value="${source}">
+          <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
+        `;
+        sourceList.appendChild(sourceItem);
+      });
+    };
+  </script>
 </body>
 </html>
