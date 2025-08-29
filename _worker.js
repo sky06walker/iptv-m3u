@@ -1,4 +1,149 @@
 // Cloudflare Pages "Advanced" routing worker (no Functions folder needed)
+// 处理配置API请求
+async function handleConfigApi(request, env, ctx) {
+  const url = new URL(request.url);
+  const method = request.method;
+  
+  // CORS 头部
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json'
+  };
+  
+  // 处理预检请求
+  if (method === 'OPTIONS') {
+    return new Response(null, { headers });
+  }
+  
+  // 检查源是否存在 (HEAD请求)
+  if (method === 'HEAD' && url.pathname.startsWith('/api/config/sources/')) {
+    try {
+      const sourceKey = url.pathname.split('/').pop();
+      
+      // 检查源是否存在
+      const source = await env.DB.prepare(
+        "SELECT source_key FROM sources WHERE source_key = ?"
+      ).bind(sourceKey).first();
+      
+      if (source) {
+        return new Response(null, { status: 200, headers });
+      } else {
+        return new Response(null, { status: 404, headers });
+      }
+    } catch (error) {
+      return new Response(null, { status: 500, headers });
+    }
+  }
+  
+  // 获取所有配置
+  if (method === 'GET' && url.pathname === '/api/config') {
+    try {
+      // 获取全局配置
+      const configResult = await env.DB.prepare(
+        "SELECT use_std_name, primary_chinese_source FROM config WHERE id = 'default'"
+      ).first();
+      
+      // 获取所有源
+      const sourcesResult = await env.DB.prepare(
+        "SELECT source_key, source_url, is_active FROM sources"
+      ).all();
+      
+      return new Response(JSON.stringify({
+        config: configResult || {},
+        sources: sourcesResult?.results || []
+      }), { headers });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
+    }
+  }
+  
+  // 更新全局配置
+  if (method === 'PUT' && url.pathname === '/api/config') {
+    try {
+      const data = await request.json();
+      
+      // 更新全局配置
+      if (data.config) {
+        await env.DB.prepare(
+          "UPDATE config SET use_std_name = ?, primary_chinese_source = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 'default'"
+        ).bind(
+          data.config.use_std_name ? 1 : 0,
+          data.config.primary_chinese_source
+        ).run();
+      }
+      
+      return new Response(JSON.stringify({ success: true }), { headers });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
+    }
+  }
+  
+  // 添加新源
+  if (method === 'POST' && url.pathname === '/api/config/sources') {
+    try {
+      const data = await request.json();
+      
+      if (!data.source_key || !data.source_url) {
+        return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400, headers });
+      }
+      
+      // 添加新源
+      await env.DB.prepare(
+        "INSERT INTO sources (source_key, source_url) VALUES (?, ?)"
+      ).bind(
+        data.source_key,
+        data.source_url
+      ).run();
+      
+      return new Response(JSON.stringify({ success: true }), { headers });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
+    }
+  }
+  
+  // 更新源
+  if (method === 'PUT' && url.pathname.startsWith('/api/config/sources/')) {
+    try {
+      const sourceKey = url.pathname.split('/').pop();
+      const data = await request.json();
+      
+      // 更新源
+      await env.DB.prepare(
+        "UPDATE sources SET source_url = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE source_key = ?"
+      ).bind(
+        data.source_url,
+        data.is_active ? 1 : 0,
+        sourceKey
+      ).run();
+      
+      return new Response(JSON.stringify({ success: true }), { headers });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
+    }
+  }
+  
+  // 删除源
+  if (method === 'DELETE' && url.pathname.startsWith('/api/config/sources/')) {
+    try {
+      const sourceKey = url.pathname.split('/').pop();
+      
+      // 删除源
+      await env.DB.prepare(
+        "DELETE FROM sources WHERE source_key = ?"
+      ).bind(sourceKey).run();
+      
+      return new Response(JSON.stringify({ success: true }), { headers });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
+    }
+  }
+  
+  // 未找到匹配的路由
+  return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -6,6 +151,11 @@ export default {
     // 1) Quick health check
     if (url.pathname === '/hello') {
       return new Response('ok\n', { headers: { 'content-type': 'text/plain; charset=utf-8' } });
+    }
+    
+    // API端点 - 配置管理
+    if (url.pathname.startsWith('/api/config')) {
+      return await handleConfigApi(request, env, ctx);
     }
 
     // 2) Generate a playlist (merged or Chinese-only)
@@ -35,6 +185,41 @@ export default {
           primaryChineseSource: SOURCE_MAP['m3u888'],
           useStdName: true // 默认使用标准化名称
         };
+        
+        // 尝试从D1数据库读取配置
+        try {
+          // 读取全局配置
+          const dbConfig = await env.DB.prepare(
+            "SELECT use_std_name, primary_chinese_source FROM config WHERE id = 'default'"
+          ).first();
+          
+          if (dbConfig) {
+            config.useStdName = dbConfig.use_std_name === 1;
+            
+            // 读取源列表
+            const dbSources = await env.DB.prepare(
+              "SELECT source_key, source_url FROM sources WHERE is_active = 1"
+            ).all();
+            
+            if (dbSources && dbSources.results && dbSources.results.length > 0) {
+              // 更新SOURCE_MAP
+              dbSources.results.forEach(source => {
+                SOURCE_MAP[source.source_key] = source.source_url;
+              });
+              
+              // 更新sources列表
+              config.sources = dbSources.results.map(source => source.source_url);
+              
+              // 设置primaryChineseSource
+              if (dbConfig.primary_chinese_source) {
+                config.primaryChineseSource = SOURCE_MAP[dbConfig.primary_chinese_source] || dbConfig.primary_chinese_source;
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching config from D1:', error);
+          // 出错时使用默认配置
+        }
         
         // 处理sourceMap参数 - 允许自定义源键值对映射
         const sourceMapParam = url.searchParams.get('sourceMap');

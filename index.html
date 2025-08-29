@@ -320,6 +320,146 @@
       }
     }
     
+    // 从D1数据库加载配置
+    async function loadConfigFromDB() {
+      try {
+        const response = await fetch('/api/config');
+        if (!response.ok) {
+          throw new Error(`Failed to load config: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // 设置useStdName
+        if (data.config && data.config.use_std_name !== undefined) {
+          document.getElementById('use-std-name').checked = data.config.use_std_name === 1;
+        }
+        
+        // 清空现有源
+        const sourceList = document.getElementById('source-list');
+        sourceList.innerHTML = '';
+        
+        // 设置主要中文源
+        let primaryChineseKey = '';
+        if (data.config && data.config.primary_chinese_source) {
+          primaryChineseKey = data.config.primary_chinese_source;
+        }
+        
+        // 添加所有源
+        if (data.sources && data.sources.length > 0) {
+          data.sources.forEach(source => {
+            addSource();
+            const lastItem = sourceList.lastElementChild;
+            const keyInput = lastItem.querySelector('.source-key-input');
+            const urlInput = lastItem.querySelector('.source-input');
+            
+            keyInput.value = source.source_key;
+            urlInput.value = source.source_url;
+            
+            // 如果是主要中文源，设置到主要中文源输入框
+            if (source.source_key === primaryChineseKey) {
+              document.getElementById('primary-chinese-key').value = source.source_key;
+              document.getElementById('primary-chinese').value = source.source_url;
+            }
+          });
+        } else {
+          // 至少添加一个空源输入框
+          addSource();
+        }
+        
+        return true;
+      } catch (error) {
+        console.error('Error loading config from DB:', error);
+        // 出错时至少添加一个空源输入框
+        const sourceList = document.getElementById('source-list');
+        if (sourceList.children.length === 0) {
+          addSource();
+        }
+        return false;
+      }
+    }
+    
+    // 保存配置到D1数据库
+    async function saveConfigToDB() {
+      try {
+        // 获取主要中文源的键
+        const primaryChineseKey = document.getElementById('primary-chinese-key').value.trim();
+        
+        // 获取useStdName设置
+        const useStdName = document.getElementById('use-std-name').checked ? 1 : 0;
+        
+        // 更新全局配置
+        const configResponse = await fetch('/api/config', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            config: {
+              use_std_name: useStdName,
+              primary_chinese_source: primaryChineseKey
+            }
+          })
+        });
+        
+        if (!configResponse.ok) {
+          throw new Error(`Failed to save config: ${configResponse.statusText}`);
+        }
+        
+        // 收集所有源
+        const sourceItems = document.querySelectorAll('.source-item');
+        const sources = [];
+        
+        for (const item of sourceItems) {
+          const keyInput = item.querySelector('.source-key-input');
+          const urlInput = item.querySelector('.source-input');
+          
+          const key = keyInput.value.trim();
+          const url = urlInput.value.trim();
+          
+          if (key && url) {
+            // 检查源是否已存在
+            const checkResponse = await fetch(`/api/config/sources/${encodeURIComponent(key)}`, {
+              method: 'HEAD'
+            });
+            
+            if (checkResponse.status === 200) {
+              // 更新现有源
+              await fetch(`/api/config/sources/${encodeURIComponent(key)}`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  source_url: url,
+                  is_active: true
+                })
+              });
+            } else {
+              // 添加新源
+              await fetch('/api/config/sources', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  source_key: key,
+                  source_url: url
+                })
+              });
+            }
+          }
+        }
+        
+        alert('Configuration saved to database successfully!');
+        return true;
+      } catch (error) {
+        console.error('Error saving config to DB:', error);
+        alert(`Failed to save configuration: ${error.message}`);
+        return false;
+      }
+    }
+    
     // Generate configuration URLs
     function generateConfig() {
       // 获取主要中文源的键和URL
@@ -393,6 +533,11 @@
       document.getElementById('chinese-url').value = `${baseUrl}/chinese.m3u?${params.toString()}`;
       
       document.getElementById('result-section').style.display = 'block';
+      
+      // 询问是否保存配置到数据库
+      if (confirm('Do you want to save this configuration to the database?')) {
+        saveConfigToDB();
+      }
     }
     
     // Copy URL to clipboard
@@ -410,32 +555,47 @@
     }
     
     // Initialize with default sources
-    window.onload = function() {
-      // 默认源的键值对
-      const defaultSources = [
-        { key: 'aktv', url: 'https://aktv.space/live.m3u' },
-        { key: 'iptv-org', url: 'https://iptv-org.github.io/iptv/index.m3u' },
-        { key: 'm3u888', url: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u' }
-      ];
+    window.onload = async function() {
+      // 尝试从数据库加载配置
+      const loaded = await loadConfigFromDB();
       
-      // 设置默认主要中文源
-      document.getElementById('primary-chinese-key').value = 'm3u888';
-      document.getElementById('primary-chinese').value = defaultSources.find(s => s.key === 'm3u888').url;
+      // 如果加载失败，使用默认源
+      if (!loaded) {
+        // 默认源的键值对
+        const defaultSources = [
+          { key: 'aktv', url: 'https://aktv.space/live.m3u' },
+          { key: 'iptv-org', url: 'https://iptv-org.github.io/iptv/index.m3u' },
+          { key: 'm3u888', url: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u' }
+        ];
+        
+        // 设置默认主要中文源
+        document.getElementById('primary-chinese-key').value = 'm3u888';
+        document.getElementById('primary-chinese').value = defaultSources.find(s => s.key === 'm3u888').url;
+        
+        // 设置源列表
+        const sourceList = document.getElementById('source-list');
+        sourceList.innerHTML = '';
+        
+        defaultSources.forEach(source => {
+          const sourceItem = document.createElement('div');
+          sourceItem.className = 'source-item';
+          sourceItem.innerHTML = `
+            <input type="text" class="source-key-input" placeholder="Enter key name" value="${source.key}" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
+            <input type="text" class="source-input" placeholder="Enter URL value" value="${source.url}" style="flex: 2;">
+            <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
+          `;
+          sourceList.appendChild(sourceItem);
+        });
+      }
       
-      // 设置源列表
-      const sourceList = document.getElementById('source-list');
-      sourceList.innerHTML = '';
-      
-      defaultSources.forEach(source => {
-        const sourceItem = document.createElement('div');
-        sourceItem.className = 'source-item';
-        sourceItem.innerHTML = `
-          <input type="text" class="source-key-input" placeholder="Enter key name" value="${source.key}" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
-          <input type="text" class="source-input" placeholder="Enter URL value" value="${source.url}" style="flex: 2;">
-          <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
-        `;
-        sourceList.appendChild(sourceItem);
-      });
+      // 添加保存配置按钮
+      const configSection = document.querySelector('.config-section');
+      const saveButton = document.createElement('button');
+      saveButton.textContent = 'Save Configuration to Database';
+      saveButton.className = 'generate-btn';
+      saveButton.style.marginTop = '1rem';
+      saveButton.onclick = saveConfigToDB;
+      configSection.appendChild(saveButton);
     };
   </script>
 </body>
