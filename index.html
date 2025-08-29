@@ -244,14 +244,8 @@
         <div class="form-group">
           <label for="primary-chinese-key">Primary Chinese Source:</label>
           <div style="display: flex; gap: 10px;">
-            <select id="primary-chinese-key" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
-              <option value="">-- Select a key --</option>
-              <option value="aktv">aktv</option>
-              <option value="iptv-org">iptv-org</option>
-              <option value="m3u888">m3u888</option>
-              <option value="custom">Custom URL</option>
-            </select>
-            <input type="text" id="primary-chinese" placeholder="Enter custom URL if needed" style="flex: 2;">
+            <input type="text" id="primary-chinese-key" placeholder="Enter key name" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
+            <input type="text" id="primary-chinese" placeholder="Enter URL value" style="flex: 2;">
           </div>
         </div>
         
@@ -259,16 +253,10 @@
           <label>All Sources:</label>
           <div class="source-list" id="source-list">
             <div class="source-item">
-              <select class="source-key-select" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
-                <option value="">-- Select a key --</option>
-                <option value="aktv">aktv</option>
-                <option value="iptv-org">iptv-org</option>
-                <option value="m3u888">m3u888</option>
-                <option value="custom">Custom URL</option>
-              </select>
-              <input type="text" class="source-input" placeholder="Enter custom URL if needed" style="flex: 2;">
-              <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
-            </div>
+          <input type="text" class="source-key-input" placeholder="Enter key name" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
+          <input type="text" class="source-input" placeholder="Enter URL value" style="flex: 2;">
+          <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
+        </div>
           </div>
           <button class="add-source-btn" onclick="addSource()">+ Add Source</button>
         </div>
@@ -314,21 +302,11 @@
       const sourceItem = document.createElement('div');
       sourceItem.className = 'source-item';
       sourceItem.innerHTML = `
-        <select class="source-key-select" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
-          <option value="">-- Select a key --</option>
-          <option value="aktv">aktv</option>
-          <option value="iptv-org">iptv-org</option>
-          <option value="m3u888">m3u888</option>
-          <option value="custom">Custom URL</option>
-        </select>
-        <input type="text" class="source-input" placeholder="Enter custom URL if needed" style="flex: 2;">
+        <input type="text" class="source-key-input" placeholder="Enter key name" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
+        <input type="text" class="source-input" placeholder="Enter URL value" style="flex: 2; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
         <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
       `;
       sourceList.appendChild(sourceItem);
-      
-      // Add event listener to the new select element
-      const select = sourceItem.querySelector('.source-key-select');
-      select.addEventListener('change', handleSourceKeyChange);
     }
     
     // Remove a source input field
@@ -342,59 +320,53 @@
       }
     }
     
-    // Handle source key selection change
-    function handleSourceKeyChange(event) {
-      const select = event.target;
-      const input = select.nextElementSibling;
-      
-      if (select.value === 'custom') {
-        input.style.display = 'block';
-        input.value = '';
-      } else if (select.value === '') {
-        input.style.display = 'block';
-        input.value = '';
-      } else {
-        // If a predefined key is selected, hide the input
-        input.style.display = 'none';
-        input.value = '';
-      }
-    }
-    
     // Generate configuration URLs
     function generateConfig() {
-      // Get primary Chinese source
-      const primaryChineseKey = document.getElementById('primary-chinese-key').value;
-      const primaryChineseCustom = document.getElementById('primary-chinese').value.trim();
-      let primaryChineseSource = '';
+      // 获取主要中文源的键和URL
+      const primaryChineseKey = document.getElementById('primary-chinese-key').value.trim();
+      const primaryChineseUrl = document.getElementById('primary-chinese').value.trim();
       
-      if (primaryChineseKey === 'custom') {
-        primaryChineseSource = primaryChineseCustom;
-      } else if (primaryChineseKey) {
-        primaryChineseSource = primaryChineseKey; // Just use the key
+      // 确定primaryChineseSource参数
+      let primaryChineseSource = null;
+      if (primaryChineseKey) {
+        primaryChineseSource = primaryChineseKey;
       }
       
-      // Get all sources
-      const sourceItems = document.querySelectorAll('.source-item');
+      // 收集所有源
       const sources = [];
+      const sourceMap = {};
+      const sourceItems = document.querySelectorAll('.source-item');
       
       sourceItems.forEach(item => {
-        const keySelect = item.querySelector('.source-key-select');
-        const input = item.querySelector('.source-input');
+        const keyInput = item.querySelector('.source-key-input');
+        const urlInput = item.querySelector('.source-input');
         
-        if (keySelect.value === 'custom' && input.value.trim()) {
-          sources.push(input.value.trim());
-        } else if (keySelect.value && keySelect.value !== 'custom') {
-          sources.push(keySelect.value); // Just use the key
+        const key = keyInput.value.trim();
+        const url = urlInput.value.trim();
+        
+        if (key && url && key !== primaryChineseKey) {
+          sources.push(key);
+          sourceMap[key] = url;
         }
       });
+      
+      // 添加主要中文源到sourceMap
+      if (primaryChineseKey && primaryChineseUrl) {
+        sourceMap[primaryChineseKey] = primaryChineseUrl;
+      }
       
       // Get useStdName setting
       const useStdName = document.getElementById('use-std-name').checked ? '1' : '0';
       
       if (!primaryChineseSource && sources.length === 0) {
-        alert('Please select at least one source');
+        alert('Please enter at least one source with key and URL');
         return;
       }
+      
+      // 创建sourceMap参数 - 格式为key1=url1,key2=url2
+        const sourceMapParam = Object.entries(sourceMap)
+          .map(([key, url]) => `${encodeURIComponent(key)}=${encodeURIComponent(url)}`)
+          .join(',');
       
       // Build URL parameters
       const params = new URLSearchParams();
@@ -403,11 +375,17 @@
         params.append('primaryChineseSource', primaryChineseSource);
       }
       
+      // 如果有primaryChineseUrl，直接添加到参数中
+      if (primaryChineseUrl) {
+        params.append('primaryChineseUrl', encodeURIComponent(primaryChineseUrl));
+      }
+      
       if (sources.length > 0) {
         params.append('sources', sources.join(','));
       }
       
       params.append('useStdName', useStdName);
+      params.append('sourceMap', sourceMapParam);
       
       const baseUrl = window.location.origin;
       
@@ -433,47 +411,30 @@
     
     // Initialize with default sources
     window.onload = function() {
-      const defaultSourceKeys = ['aktv', 'iptv-org', 'm3u888'];
+      // 默认源的键值对
+      const defaultSources = [
+        { key: 'aktv', url: 'https://aktv.space/live.m3u' },
+        { key: 'iptv-org', url: 'https://iptv-org.github.io/iptv/index.m3u' },
+        { key: 'm3u888', url: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u' }
+      ];
       
-      // Set default primary Chinese source
+      // 设置默认主要中文源
       document.getElementById('primary-chinese-key').value = 'm3u888';
-      document.getElementById('primary-chinese').style.display = 'none';
+      document.getElementById('primary-chinese').value = defaultSources.find(s => s.key === 'm3u888').url;
       
-      // Add event listener to primary Chinese source key select
-      document.getElementById('primary-chinese-key').addEventListener('change', function(event) {
-        const input = document.getElementById('primary-chinese');
-        if (this.value === 'custom') {
-          input.style.display = 'block';
-          input.value = '';
-        } else {
-          input.style.display = 'none';
-          input.value = '';
-        }
-      });
-      
-      // Set up source list
+      // 设置源列表
       const sourceList = document.getElementById('source-list');
       sourceList.innerHTML = '';
       
-      defaultSourceKeys.forEach(key => {
+      defaultSources.forEach(source => {
         const sourceItem = document.createElement('div');
         sourceItem.className = 'source-item';
         sourceItem.innerHTML = `
-          <select class="source-key-select" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
-            <option value="">-- Select a key --</option>
-            <option value="aktv" ${key === 'aktv' ? 'selected' : ''}>aktv</option>
-            <option value="iptv-org" ${key === 'iptv-org' ? 'selected' : ''}>iptv-org</option>
-            <option value="m3u888" ${key === 'm3u888' ? 'selected' : ''}>m3u888</option>
-            <option value="custom">Custom URL</option>
-          </select>
-          <input type="text" class="source-input" placeholder="Enter custom URL if needed" style="flex: 2; display: none;">
+          <input type="text" class="source-key-input" placeholder="Enter key name" value="${source.key}" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
+          <input type="text" class="source-input" placeholder="Enter URL value" value="${source.url}" style="flex: 2;">
           <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
         `;
         sourceList.appendChild(sourceItem);
-        
-        // Add event listener
-        const select = sourceItem.querySelector('.source-key-select');
-        select.addEventListener('change', handleSourceKeyChange);
       });
     };
   </script>

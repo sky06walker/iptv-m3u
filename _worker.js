@@ -36,6 +36,25 @@ export default {
           useStdName: true // 默认使用标准化名称
         };
         
+        // 处理sourceMap参数 - 允许自定义源键值对映射
+        const sourceMapParam = url.searchParams.get('sourceMap');
+        if (sourceMapParam) {
+          try {
+            // 解析sourceMap参数
+            const customSourceMap = {};
+            sourceMapParam.split(',').forEach(pair => {
+              const [key, value] = pair.split('=').map(decodeURIComponent);
+              if (key && value) {
+                customSourceMap[key] = value;
+                // 添加到全局SOURCE_MAP
+                SOURCE_MAP[key] = value;
+              }
+            });
+          } catch (e) {
+            console.warn('Invalid sourceMap parameter:', e);
+          }
+        }
+        
         // 从URL参数获取源配置（支持键名或完整URL）
         const sourcesParam = url.searchParams.get('sources');
         if (sourcesParam) {
@@ -47,6 +66,12 @@ export default {
         const primaryParam = url.searchParams.get('primaryChineseSource');
         if (primaryParam) {
           config.primaryChineseSource = SOURCE_MAP[primaryParam] || primaryParam;
+        }
+        
+        // 处理primaryChineseUrl参数 - 直接指定主要中文源URL
+        const primaryChineseUrl = url.searchParams.get('primaryChineseUrl');
+        if (primaryChineseUrl) {
+          config.primaryChineseSource = decodeURIComponent(primaryChineseUrl);
         }
         
         // 设置是否使用标准化名称 - 根据URL参数控制是否修改group-title
@@ -160,8 +185,9 @@ export default {
           for (const e of entries) {
             // 根据useStdName参数决定是否标准化组名
             let newGroup = e.group;
-            if (USE_STD_NAME) {
-                newGroup = e.isDesignatedChinese ? e.group : standardizeCategory(e.group);
+            if (USE_STD_NAME === '1' || USE_STD_NAME === 1) {
+                // 如果是中文频道，设置为'中文频道'，否则标准化类别
+                newGroup = e.isDesignatedChinese ? '中文频道' : standardizeCategory(e.group);
             }
             
             const commaIndex = e.info.lastIndexOf(',');
@@ -174,7 +200,7 @@ export default {
             const namePart = e.info.substring(commaIndex);
 
             // 只有在启用标准化名称时才修改group-title
-            if (USE_STD_NAME) {
+            if (USE_STD_NAME === '1' || USE_STD_NAME === 1) {
                 // Handle group-title: replace if present, otherwise append.
                 if (/group-title=/.test(attributesPart)) {
                     attributesPart = attributesPart.replace(/group-title=(?:"[^"]*"|[^\s]+)/i, `group-title="${newGroup}"`);
@@ -237,12 +263,12 @@ export default {
             // 确保正确比较源URL，使用严格相等
             const isFromPrimarySource = e.source === PRIMARY_CHINESE_SOURCE;
             
-            // 标记中文频道（无论是否修改组名）
+            // 标记中文频道
             if (isFromPrimarySource || hasChineseChars) {
                 e.isDesignatedChinese = true;
                 
-                // 只有在启用标准化名称时才修改组名
-                if (USE_STD_NAME) {
+                // 如果启用了标准化名称，将所有中文频道的组名设置为'中文频道'
+                if (USE_STD_NAME === '1' || USE_STD_NAME === 1) {
                     e.group = '中文频道';
                 }
             }
@@ -299,8 +325,8 @@ export default {
             }
             
             // 根据useStdName参数决定是否标准化组名
-            const finalGroup = USE_STD_NAME ? 
-                (e.isDesignatedChinese ? e.group : standardizeCategory(e.group)) : 
+            const finalGroup = (USE_STD_NAME === '1' || USE_STD_NAME === 1) ? 
+                (e.isDesignatedChinese ? '中文频道' : standardizeCategory(e.group)) : 
                 e.group;
             debugEntries.push({
               ...e,
