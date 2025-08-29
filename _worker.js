@@ -16,9 +16,10 @@ export default {
 
         const SOURCES = [
           'https://aktv.space/live.m3u',
-          'https://iptv-org.github.io/iptv/index.m3u'
+          'https://iptv-org.github.io/iptv/index.m3u',
+          'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u'
         ];
-        const PRIMARY_CHINESE_SOURCE = 'https://aktv.space/live.m3u';
+        const PRIMARY_CHINESE_SOURCE = 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u';
         const HEADER = '#EXTM3U';
 
         const standardizeCategory = (group) => {
