@@ -16,14 +16,41 @@ export default {
 
         // Configuration can be updated via URL parameters for flexibility
         const configParam = url.searchParams.get('config');
+        const useStdName = url.searchParams.get('useStdName') === '1'; // 新参数：控制是否标准化频道名称
+        
+        // 定义源URL的键值对映射 - 使用键值对系统简化配置
+        const SOURCE_MAP = {
+          'aktv': 'https://aktv.space/live.m3u',
+          'iptv-org': 'https://iptv-org.github.io/iptv/index.m3u',
+          'm3u888': 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u'
+          // 可以轻松添加更多源映射
+        };
+        
         let config = {
           sources: [
-            'https://aktv.space/live.m3u',
-            'https://iptv-org.github.io/iptv/index.m3u',
-            'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u'
+            SOURCE_MAP['aktv'],
+            SOURCE_MAP['iptv-org'],
+            SOURCE_MAP['m3u888']
           ],
-          primaryChineseSource: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u'
+          primaryChineseSource: SOURCE_MAP['m3u888'],
+          useStdName: true // 默认使用标准化名称
         };
+        
+        // 从URL参数获取源配置（支持键名或完整URL）
+        const sourcesParam = url.searchParams.get('sources');
+        if (sourcesParam) {
+          const sourcesList = sourcesParam.split(',').map(s => s.trim());
+          config.sources = sourcesList.map(s => SOURCE_MAP[s] || s); // 如果在映射中找到键，使用映射的URL，否则使用原始值
+        }
+        
+        // 从URL参数获取主要中文源（支持键名或完整URL）
+        const primaryParam = url.searchParams.get('primaryChineseSource');
+        if (primaryParam) {
+          config.primaryChineseSource = SOURCE_MAP[primaryParam] || primaryParam;
+        }
+        
+        // 设置是否使用标准化名称 - 根据URL参数控制是否修改group-title
+        config.useStdName = useStdName;
         
         // Allow updating configuration via URL parameter (base64 encoded JSON)
         if (configParam) {
@@ -31,6 +58,7 @@ export default {
             const decodedConfig = JSON.parse(atob(configParam));
             if (decodedConfig.sources) config.sources = decodedConfig.sources;
             if (decodedConfig.primaryChineseSource) config.primaryChineseSource = decodedConfig.primaryChineseSource;
+            if (decodedConfig.useStdName !== undefined) config.useStdName = decodedConfig.useStdName;
           } catch (e) {
             console.warn('Invalid config parameter:', e);
           }
@@ -38,6 +66,7 @@ export default {
         
         const SOURCES = config.sources;
         const PRIMARY_CHINESE_SOURCE = config.primaryChineseSource;
+        const USE_STD_NAME = config.useStdName;
         const HEADER = '#EXTM3U';
 
         const standardizeCategory = (group) => {
@@ -129,7 +158,11 @@ export default {
 
           // Process ALL entries (removed the duration === -1 condition)
           for (const e of entries) {
-            const newGroup = e.isDesignatedChinese ? e.group : standardizeCategory(e.group);
+            // 根据useStdName参数决定是否标准化组名
+            let newGroup = e.group;
+            if (USE_STD_NAME) {
+                newGroup = e.isDesignatedChinese ? e.group : standardizeCategory(e.group);
+            }
             
             const commaIndex = e.info.lastIndexOf(',');
             if (commaIndex === -1) {
@@ -140,11 +173,14 @@ export default {
             let attributesPart = e.info.substring(0, commaIndex);
             const namePart = e.info.substring(commaIndex);
 
-            // Handle group-title: replace if present, otherwise append.
-            if (/group-title=/.test(attributesPart)) {
-                attributesPart = attributesPart.replace(/group-title=(?:"[^"]*"|[^\s]+)/i, `group-title="${newGroup}"`);
-            } else {
-                attributesPart += ` group-title="${newGroup}"`;
+            // 只有在启用标准化名称时才修改group-title
+            if (USE_STD_NAME) {
+                // Handle group-title: replace if present, otherwise append.
+                if (/group-title=/.test(attributesPart)) {
+                    attributesPart = attributesPart.replace(/group-title=(?:"[^"]*"|[^\s]+)/i, `group-title="${newGroup}"`);
+                } else {
+                    attributesPart += ` group-title="${newGroup}"`;
+                }
             }
 
             // Handle tvg-chno for ALL channels (regardless of duration)
@@ -200,9 +236,15 @@ export default {
             const hasChineseChars = /[\u4e00-\u9fa5]/.test(e.name);
             // 确保正确比较源URL，使用严格相等
             const isFromPrimarySource = e.source === PRIMARY_CHINESE_SOURCE;
+            
+            // 标记中文频道（无论是否修改组名）
             if (isFromPrimarySource || hasChineseChars) {
                 e.isDesignatedChinese = true;
-                e.group = '中文频道';
+                
+                // 只有在启用标准化名称时才修改组名
+                if (USE_STD_NAME) {
+                    e.group = '中文频道';
+                }
             }
         });
 
@@ -256,7 +298,10 @@ export default {
               nextAvailableChno++;
             }
             
-            const finalGroup = e.isDesignatedChinese ? e.group : standardizeCategory(e.group);
+            // 根据useStdName参数决定是否标准化组名
+            const finalGroup = USE_STD_NAME ? 
+                (e.isDesignatedChinese ? e.group : standardizeCategory(e.group)) : 
+                e.group;
             debugEntries.push({
               ...e,
               finalChno: finalChannelNumber,

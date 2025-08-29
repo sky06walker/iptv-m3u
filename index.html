@@ -242,19 +242,40 @@
       
       <div class="config-form">
         <div class="form-group">
-          <label for="primary-chinese">Primary Chinese Source URL:</label>
-          <input type="text" id="primary-chinese" placeholder="Enter the primary Chinese source URL">
+          <label for="primary-chinese-key">Primary Chinese Source:</label>
+          <div style="display: flex; gap: 10px;">
+            <select id="primary-chinese-key" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
+              <option value="">-- Select a key --</option>
+              <option value="aktv">aktv</option>
+              <option value="iptv-org">iptv-org</option>
+              <option value="m3u888">m3u888</option>
+              <option value="custom">Custom URL</option>
+            </select>
+            <input type="text" id="primary-chinese" placeholder="Enter custom URL if needed" style="flex: 2;">
+          </div>
         </div>
         
         <div class="form-group">
           <label>All Sources:</label>
           <div class="source-list" id="source-list">
             <div class="source-item">
-              <input type="text" class="source-input" placeholder="Enter source URL">
+              <select class="source-key-select" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
+                <option value="">-- Select a key --</option>
+                <option value="aktv">aktv</option>
+                <option value="iptv-org">iptv-org</option>
+                <option value="m3u888">m3u888</option>
+                <option value="custom">Custom URL</option>
+              </select>
+              <input type="text" class="source-input" placeholder="Enter custom URL if needed" style="flex: 2;">
               <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
             </div>
           </div>
           <button class="add-source-btn" onclick="addSource()">+ Add Source</button>
+        </div>
+        
+        <div class="form-group" style="flex-direction: row; align-items: center;">
+          <input type="checkbox" id="use-std-name" checked style="width: auto; margin-right: 10px;">
+          <label for="use-std-name">Standardize channel names and groups</label>
         </div>
         
         <button class="generate-btn" onclick="generateConfig()">Generate Custom URLs</button>
@@ -293,10 +314,21 @@
       const sourceItem = document.createElement('div');
       sourceItem.className = 'source-item';
       sourceItem.innerHTML = `
-        <input type="text" class="source-input" placeholder="Enter source URL">
+        <select class="source-key-select" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
+          <option value="">-- Select a key --</option>
+          <option value="aktv">aktv</option>
+          <option value="iptv-org">iptv-org</option>
+          <option value="m3u888">m3u888</option>
+          <option value="custom">Custom URL</option>
+        </select>
+        <input type="text" class="source-input" placeholder="Enter custom URL if needed" style="flex: 2;">
         <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
       `;
       sourceList.appendChild(sourceItem);
+      
+      // Add event listener to the new select element
+      const select = sourceItem.querySelector('.source-key-select');
+      select.addEventListener('change', handleSourceKeyChange);
     }
     
     // Remove a source input field
@@ -310,37 +342,77 @@
       }
     }
     
+    // Handle source key selection change
+    function handleSourceKeyChange(event) {
+      const select = event.target;
+      const input = select.nextElementSibling;
+      
+      if (select.value === 'custom') {
+        input.style.display = 'block';
+        input.value = '';
+      } else if (select.value === '') {
+        input.style.display = 'block';
+        input.value = '';
+      } else {
+        // If a predefined key is selected, hide the input
+        input.style.display = 'none';
+        input.value = '';
+      }
+    }
+    
     // Generate configuration URLs
     function generateConfig() {
-      const primaryChineseSource = document.getElementById('primary-chinese').value.trim();
-      const sourceInputs = document.querySelectorAll('.source-input');
+      // Get primary Chinese source
+      const primaryChineseKey = document.getElementById('primary-chinese-key').value;
+      const primaryChineseCustom = document.getElementById('primary-chinese').value.trim();
+      let primaryChineseSource = '';
+      
+      if (primaryChineseKey === 'custom') {
+        primaryChineseSource = primaryChineseCustom;
+      } else if (primaryChineseKey) {
+        primaryChineseSource = primaryChineseKey; // Just use the key
+      }
+      
+      // Get all sources
+      const sourceItems = document.querySelectorAll('.source-item');
       const sources = [];
       
-      sourceInputs.forEach(input => {
-        const url = input.value.trim();
-        if (url) {
-          sources.push(url);
+      sourceItems.forEach(item => {
+        const keySelect = item.querySelector('.source-key-select');
+        const input = item.querySelector('.source-input');
+        
+        if (keySelect.value === 'custom' && input.value.trim()) {
+          sources.push(input.value.trim());
+        } else if (keySelect.value && keySelect.value !== 'custom') {
+          sources.push(keySelect.value); // Just use the key
         }
       });
       
+      // Get useStdName setting
+      const useStdName = document.getElementById('use-std-name').checked ? '1' : '0';
+      
       if (!primaryChineseSource && sources.length === 0) {
-        alert('Please enter at least one source URL');
+        alert('Please select at least one source');
         return;
       }
       
-      const config = {};
+      // Build URL parameters
+      const params = new URLSearchParams();
+      
       if (primaryChineseSource) {
-        config.primaryChineseSource = primaryChineseSource;
-      }
-      if (sources.length > 0) {
-        config.sources = sources;
+        params.append('primaryChineseSource', primaryChineseSource);
       }
       
-      const configBase64 = btoa(JSON.stringify(config));
+      if (sources.length > 0) {
+        params.append('sources', sources.join(','));
+      }
+      
+      params.append('useStdName', useStdName);
+      
       const baseUrl = window.location.origin;
       
-      document.getElementById('merged-url').value = `${baseUrl}/merged.m3u?config=${configBase64}`;
-      document.getElementById('chinese-url').value = `${baseUrl}/chinese.m3u?config=${configBase64}`;
+      document.getElementById('merged-url').value = `${baseUrl}/merged.m3u?${params.toString()}`;
+      document.getElementById('chinese-url').value = `${baseUrl}/chinese.m3u?${params.toString()}`;
       
       document.getElementById('result-section').style.display = 'block';
     }
@@ -361,25 +433,47 @@
     
     // Initialize with default sources
     window.onload = function() {
-      const defaultSources = [
-        'https://aktv.space/live.m3u',
-        'https://iptv-org.github.io/iptv/index.m3u',
-        'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u'
-      ];
+      const defaultSourceKeys = ['aktv', 'iptv-org', 'm3u888'];
       
-      document.getElementById('primary-chinese').value = 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u';
+      // Set default primary Chinese source
+      document.getElementById('primary-chinese-key').value = 'm3u888';
+      document.getElementById('primary-chinese').style.display = 'none';
       
+      // Add event listener to primary Chinese source key select
+      document.getElementById('primary-chinese-key').addEventListener('change', function(event) {
+        const input = document.getElementById('primary-chinese');
+        if (this.value === 'custom') {
+          input.style.display = 'block';
+          input.value = '';
+        } else {
+          input.style.display = 'none';
+          input.value = '';
+        }
+      });
+      
+      // Set up source list
       const sourceList = document.getElementById('source-list');
       sourceList.innerHTML = '';
       
-      defaultSources.forEach(source => {
+      defaultSourceKeys.forEach(key => {
         const sourceItem = document.createElement('div');
         sourceItem.className = 'source-item';
         sourceItem.innerHTML = `
-          <input type="text" class="source-input" placeholder="Enter source URL" value="${source}">
+          <select class="source-key-select" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
+            <option value="">-- Select a key --</option>
+            <option value="aktv" ${key === 'aktv' ? 'selected' : ''}>aktv</option>
+            <option value="iptv-org" ${key === 'iptv-org' ? 'selected' : ''}>iptv-org</option>
+            <option value="m3u888" ${key === 'm3u888' ? 'selected' : ''}>m3u888</option>
+            <option value="custom">Custom URL</option>
+          </select>
+          <input type="text" class="source-input" placeholder="Enter custom URL if needed" style="flex: 2; display: none;">
           <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
         `;
         sourceList.appendChild(sourceItem);
+        
+        // Add event listener
+        const select = sourceItem.querySelector('.source-key-select');
+        select.addEventListener('change', handleSourceKeyChange);
       });
     };
   </script>
