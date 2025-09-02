@@ -15,8 +15,7 @@ CREATE TABLE config (
 
 -- 创建源表 - 存储IPTV源配置
 CREATE TABLE sources (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  source_key TEXT NOT NULL UNIQUE,  -- 源的键名，如'aktv', 'iptv-org'
+  source_key TEXT PRIMARY KEY,  -- 源的键名，如'aktv', 'iptv-org'
   source_url TEXT NOT NULL,  -- 源的URL
   is_active BOOLEAN DEFAULT 1,  -- 是否启用
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
