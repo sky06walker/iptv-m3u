@@ -133,10 +133,11 @@ export default {
       return await handleConfigApi(request, env);
     }
 
-    if (url.pathname === '/merged.m3u' || url.pathname === '/chinese.m3u') {
+    if (url.pathname === '/merged.m3u' || url.pathname === '/chinese.m3u' || url.pathname === '/debug/directory') {
       try {
-        const debug = url.searchParams.get('debug');
-        const isChineseOnly = url.pathname === '/chinese.m3u';
+        const debug = url.searchParams.get('debug') || url.pathname === '/debug/directory';
+        // 只有在生成 chinese.m3u 时才过滤中文频道，debug/directory 不过滤
+        const isChineseOnly = url.pathname === '/chinese.m3u' && !debug;
         const useStdNameParam = url.searchParams.get('useStdName');
 
         // --- START: LOAD CONFIG FROM KV ---
@@ -375,7 +376,14 @@ export default {
         if (isChineseOnly) { 
             if (PRIMARY_CHINESE_SOURCE) {
                 // 如果指定了主要中文源，chinese.m3u 应该包含该源的所有频道
-                all = all.filter(e => e.source === PRIMARY_CHINESE_SOURCE);
+                // 确保 PRIMARY_CHINESE_SOURCE 有效且存在对应的频道
+                const hasChannelsFromPrimarySource = all.some(e => e.source === PRIMARY_CHINESE_SOURCE);
+                if (hasChannelsFromPrimarySource) {
+                    all = all.filter(e => e.source === PRIMARY_CHINESE_SOURCE);
+                } else {
+                    console.warn(`警告: 未找到来自主要中文源 ${PRIMARY_CHINESE_SOURCE} 的频道，将使用默认中文检测逻辑`);
+                    all = all.filter(e => e.isDesignatedChinese);
+                }
             } else {
                 // 如果没有指定主要中文源，则只包含被标记为中文的频道
                 all = all.filter(e => e.isDesignatedChinese); 
