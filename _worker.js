@@ -136,7 +136,7 @@ export default {
     if (url.pathname === '/merged.m3u' || url.pathname === '/chinese.m3u' || url.pathname === '/debug/directory') {
       try {
         const debug = url.searchParams.get('debug') || url.pathname === '/debug/directory';
-        // 只有在生成 chinese.m3u 时才过滤中文频道，debug/directory 不过滤
+        // Only filter Chinese channels when generating chinese.m3u, debug/directory doesn't filter
         const isChineseOnly = url.pathname === '/chinese.m3u';
         const useStdNameParam = url.searchParams.get('useStdName');
 
@@ -150,7 +150,7 @@ export default {
             
             const sourcePromises = sourceKeys.keys.map(async (key) => {
                 const value = await env.CONFIG_KV.get(key.name, { type: 'json' });
-                if (value.is_active === 1) {
+                if (value && value.is_active === 1) {
                     return {
                         key: key.name.replace('source:', ''),
                         url: value.url
@@ -179,7 +179,7 @@ export default {
         const config = {
           sources: dbSources.map(s => s.url),
           primaryChineseSource: SOURCE_MAP[dbConfig.primary_chinese_source] || '',
-          // 已移除标准化频道名称和分组功能
+          // Removed standardized channel name and grouping functionality
         };
         // --- END: LOAD CONFIG FROM KV ---
 
@@ -212,15 +212,10 @@ export default {
         }
         // --- End of URL Overrides ---
 
-        // The entire M3U processing logic below this line is IDENTICAL to your original file.
-        // No changes are needed here.
-        
         const SOURCES = config.sources;
         const PRIMARY_CHINESE_SOURCE = config.primaryChineseSource;
-        // 已移除标准化频道名称和分组功能
+        // Removed standardized channel name and grouping functionality
         const HEADER = '#EXTM3U';
-
-        // 已移除标准化频道名称和分组功能
 
         const parseM3U = (text, source) => {
           const lines = text.split(/\r?\n/).map(l => l.trim());
@@ -292,7 +287,7 @@ export default {
 
           for (const e of entries) {
             let newGroup = e.group;
-            // 已移除标准化频道名称和分组功能
+            // Removed standardized channel name and grouping functionality
             newGroup = e.group;
             
             const commaIndex = e.info.lastIndexOf(',');
@@ -304,13 +299,8 @@ export default {
             let attributesPart = e.info.substring(0, commaIndex);
             const namePart = e.info.substring(commaIndex);
 
-            if (USE_STD_NAME) {
-                if (/group-title=/.test(attributesPart)) {
-                    attributesPart = attributesPart.replace(/group-title=(?:"[^"]*"|[^\s]+)/i, `group-title="${newGroup}"`);
-                } else {
-                    attributesPart += ` group-title="${newGroup}"`;
-                }
-            }
+            // FIX: USE_STD_NAME was undefined - removed this functionality since it was removed from config
+            // The original code referenced USE_STD_NAME but it was never defined
 
             let finalChannelNumber;
             const hasExistingChno = e.tvgChno && e.tvgChno.trim() !== '';
@@ -353,39 +343,43 @@ export default {
 
         let all = responses.flatMap(res => parseM3U(res.text, res.source));
 
+        // FIX: The main issue - Chinese channel detection logic
         all.forEach(e => {
             const hasChineseChars = /[\u4e00-\u9fa5]/.test(e.name);
             const isFromPrimarySource = e.source === PRIMARY_CHINESE_SOURCE;
             
-            // 如果有指定主要中文源，则该源中的所有频道都标记为中文频道
-            // 如果没有指定主要中文源，则将所有包含中文字符的频道标记为中文频道
-            if (PRIMARY_CHINESE_SOURCE) {
-                // 如果指定了主要中文源，该源中的所有频道都被标记为中文频道
+            // Initialize the flag to false
+            e.isDesignatedChinese = false;
+            
+            // If a primary Chinese source is specified, all channels from that source are marked as Chinese
+            // If no primary Chinese source is specified, all channels containing Chinese characters are marked as Chinese
+            if (PRIMARY_CHINESE_SOURCE && PRIMARY_CHINESE_SOURCE.trim() !== '') {
+                // If a primary Chinese source is specified, channels from that source are Chinese
                 if (isFromPrimarySource) {
                     e.isDesignatedChinese = true;
                 }
             } else {
-                // 如果没有指定主要中文源，则所有包含中文字符的频道都被标记为中文频道
+                // If no primary Chinese source is specified, all channels with Chinese characters are Chinese
                 if (hasChineseChars) {
                     e.isDesignatedChinese = true;
                 }
             }
         });
 
-
+        // FIX: Chinese-only filtering logic
         if (isChineseOnly) { 
-            if (PRIMARY_CHINESE_SOURCE) {
-                // 如果指定了主要中文源，chinese.m3u 应该包含该源的所有频道
-                // 确保 PRIMARY_CHINESE_SOURCE 有效且存在对应的频道
+            if (PRIMARY_CHINESE_SOURCE && PRIMARY_CHINESE_SOURCE.trim() !== '') {
+                // If a primary Chinese source is specified, chinese.m3u should include all channels from that source
+                // Ensure PRIMARY_CHINESE_SOURCE is valid and there are corresponding channels
                 const hasChannelsFromPrimarySource = all.some(e => e.source === PRIMARY_CHINESE_SOURCE);
                 if (hasChannelsFromPrimarySource) {
                     all = all.filter(e => e.source === PRIMARY_CHINESE_SOURCE);
                 } else {
-                    console.warn(`警告: 未找到来自主要中文源 ${PRIMARY_CHINESE_SOURCE} 的频道，将使用默认中文检测逻辑`);
+                    console.warn(`Warning: No channels found from primary Chinese source ${PRIMARY_CHINESE_SOURCE}, using default Chinese detection logic`);
                     all = all.filter(e => e.isDesignatedChinese);
                 }
             } else {
-                // 如果没有指定主要中文源，则只包含被标记为中文的频道
+                // If no primary Chinese source is specified, only include channels marked as Chinese
                 all = all.filter(e => e.isDesignatedChinese); 
             }
         }
@@ -419,20 +413,30 @@ export default {
                     usedChannelNumbers.add(finalChannelNumber);
                 }
                 const finalGroup = e.group;
-                return { ...e, finalChno: finalChannelNumber, finalGroup, originalChno: e.tvgChno || 'EMPTY' };
+                return { 
+                  ...e, 
+                  finalChno: finalChannelNumber, 
+                  finalGroup, 
+                  originalChno: e.tvgChno || 'EMPTY',
+                  // Add debug information for Chinese detection
+                  hasChineseChars: /[\u4e00-\u9fa5]/.test(e.name),
+                  isFromPrimarySource: e.source === PRIMARY_CHINESE_SOURCE,
+                  isDesignatedChinese: e.isDesignatedChinese
+                };
             });
-            // 生成详细的debug信息
+            
+            // Generate detailed debug information
             const groupedEntries = {};
-            // 按源分组
+            // Group by source
             const sourceEntries = {};
             debugEntries.forEach(entry => {
-                // 按分组归类
+                // Group by category
                 if (!groupedEntries[entry.finalGroup]) {
                     groupedEntries[entry.finalGroup] = [];
                 }
                 groupedEntries[entry.finalGroup].push(entry);
                 
-                // 按源归类
+                // Group by source
                 if (!sourceEntries[entry.source]) {
                     sourceEntries[entry.source] = [];
                 }
@@ -440,26 +444,41 @@ export default {
             });
             
             const debugLines = [
-                `总频道数: ${debugEntries.length}`,
-                `总分组数: ${Object.keys(groupedEntries).length}`,
-                `总源数: ${Object.keys(sourceEntries).length}`,
-                `主要中文源: ${PRIMARY_CHINESE_SOURCE || '未设置'}`
+                `Total channels: ${debugEntries.length}`,
+                `Total groups: ${Object.keys(groupedEntries).length}`,
+                `Total sources: ${Object.keys(sourceEntries).length}`,
+                `Primary Chinese source: ${PRIMARY_CHINESE_SOURCE || 'Not set'}`,
+                `Chinese-only mode: ${isChineseOnly}`,
+                `Chinese channels found: ${debugEntries.filter(e => e.isDesignatedChinese).length}`
             ];
             
-            // 添加源信息
-            debugLines.push('\n源列表:');
+            // Add source information
+            debugLines.push('\nSource list:');
             Object.keys(sourceEntries).sort().forEach(source => {
                 const entries = sourceEntries[source];
-                debugLines.push(`\n源: ${source} (${entries.length}个频道)`);
+                const chineseCount = entries.filter(e => e.isDesignatedChinese).length;
+                const isPrimary = source === PRIMARY_CHINESE_SOURCE ? ' (PRIMARY CHINESE)' : '';
+                debugLines.push(`\nSource: ${source}${isPrimary} (${entries.length} channels, ${chineseCount} Chinese)`);
+                
+                // Show first 5 channels from each source for debugging
+                entries.slice(0, 5).forEach(entry => {
+                    const chineseFlag = entry.isDesignatedChinese ? ' [CHINESE]' : '';
+                    const hasChineseFlag = entry.hasChineseChars ? ' [HAS-CHINESE-CHARS]' : '';
+                    debugLines.push(`  ${entry.name}${chineseFlag}${hasChineseFlag}`);
+                });
+                if (entries.length > 5) {
+                    debugLines.push(`  ... and ${entries.length - 5} more channels`);
+                }
             });
             
-            // 添加分组频道列表
-            debugLines.push('\n分组频道列表:');
+            // Add group channel list
+            debugLines.push('\nGroup channel list:');
             Object.keys(groupedEntries).sort().forEach(group => {
                 const entries = groupedEntries[group];
-                debugLines.push(`\n分组: ${group} (${entries.length}个频道)`);
+                debugLines.push(`\nGroup: ${group} (${entries.length} channels)`);
                 entries.sort((a, b) => a.finalChno - b.finalChno).forEach(entry => {
-                    debugLines.push(`  ${entry.finalChno}: ${entry.name} [${entry.tvgId || 'NO-ID'}] (源: ${entry.source}) (原始频道号: ${entry.originalChno})`);
+                    const chineseFlag = entry.isDesignatedChinese ? ' [CHINESE]' : '';
+                    debugLines.push(`  ${entry.finalChno}: ${entry.name} [${entry.tvgId || 'NO-ID'}] (Source: ${entry.source}) (Original channel number: ${entry.originalChno})${chineseFlag}`);
                 });
             });
             
