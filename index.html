@@ -920,22 +920,21 @@
       // 尝试从数据库加载配置
       await loadConfigFromDB();
         
-        // 添加使用说明
-        const helpText = document.createElement('div');
-        helpText.className = 'help-text';
-        helpText.style.marginTop = '2rem';
-        helpText.style.padding = '1rem';
-        helpText.style.backgroundColor = 'rgba(0,0,0,0.2)';
-        helpText.style.borderRadius = '8px';
-        helpText.innerHTML = `
-          <h3>使用说明</h3>
-          <p>1. 设置主要中文源和其他源</p>
-          <p>2. 点击"生成自定义URL"获取可用的播放列表链接</p>
-          <p>3. 点击"保存配置到数据库"将配置保存到服务器以便下次使用</p>
-        `;
-        
-        configForm.appendChild(helpText);
-      }
+      // 添加使用说明
+      const helpText = document.createElement('div');
+      helpText.className = 'help-text';
+      helpText.style.marginTop = '2rem';
+      helpText.style.padding = '1rem';
+      helpText.style.backgroundColor = 'rgba(0,0,0,0.2)';
+      helpText.style.borderRadius = '8px';
+      helpText.innerHTML = `
+        <h3>使用说明</h3>
+        <p>1. 设置主要中文源和其他源</p>
+        <p>2. 点击"生成自定义URL"获取可用的播放列表链接</p>
+        <p>3. 点击"保存配置到数据库"将配置保存到服务器以便下次使用</p>
+      `;
+      
+      configForm.appendChild(helpText);
     };
   </script>
 </body>
