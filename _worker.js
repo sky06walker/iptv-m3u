@@ -357,10 +357,19 @@ export default {
             const isFromPrimarySource = e.source === PRIMARY_CHINESE_SOURCE;
             // 如果有指定主要中文源，则只将该源中的频道标记为中文频道
             // 如果没有指定主要中文源，则将所有包含中文字符的频道标记为中文频道
-            if ((PRIMARY_CHINESE_SOURCE && isFromPrimarySource) || (!PRIMARY_CHINESE_SOURCE && hasChineseChars)) {
-                e.isDesignatedChinese = true;
+            if (PRIMARY_CHINESE_SOURCE) {
+                // 如果指定了主要中文源，只有来自该源的频道才被标记为中文频道
+                if (isFromPrimarySource) {
+                    e.isDesignatedChinese = true;
+                }
+            } else {
+                // 如果没有指定主要中文源，则所有包含中文字符的频道都被标记为中文频道
+                if (hasChineseChars) {
+                    e.isDesignatedChinese = true;
+                }
             }
         });
+
 
         if (isChineseOnly) { all = all.filter(e => e.isDesignatedChinese); }
 
@@ -397,24 +406,43 @@ export default {
             });
             // 生成详细的debug信息
             const groupedEntries = {};
+            // 按源分组
+            const sourceEntries = {};
             debugEntries.forEach(entry => {
+                // 按分组归类
                 if (!groupedEntries[entry.finalGroup]) {
                     groupedEntries[entry.finalGroup] = [];
                 }
                 groupedEntries[entry.finalGroup].push(entry);
+                
+                // 按源归类
+                if (!sourceEntries[entry.source]) {
+                    sourceEntries[entry.source] = [];
+                }
+                sourceEntries[entry.source].push(entry);
             });
             
             const debugLines = [
                 `总频道数: ${debugEntries.length}`,
                 `总分组数: ${Object.keys(groupedEntries).length}`,
-                '\n分组频道列表:'
+                `总源数: ${Object.keys(sourceEntries).length}`,
+                `主要中文源: ${PRIMARY_CHINESE_SOURCE || '未设置'}`
             ];
             
+            // 添加源信息
+            debugLines.push('\n源列表:');
+            Object.keys(sourceEntries).sort().forEach(source => {
+                const entries = sourceEntries[source];
+                debugLines.push(`\n源: ${source} (${entries.length}个频道)`);
+            });
+            
+            // 添加分组频道列表
+            debugLines.push('\n分组频道列表:');
             Object.keys(groupedEntries).sort().forEach(group => {
                 const entries = groupedEntries[group];
                 debugLines.push(`\n分组: ${group} (${entries.length}个频道)`);
                 entries.sort((a, b) => a.finalChno - b.finalChno).forEach(entry => {
-                    debugLines.push(`  ${entry.finalChno}: ${entry.name} [${entry.tvgId || 'NO-ID'}] (原始频道号: ${entry.originalChno})`);
+                    debugLines.push(`  ${entry.finalChno}: ${entry.name} [${entry.tvgId || 'NO-ID'}] (源: ${entry.source}) (原始频道号: ${entry.originalChno})`);
                 });
             });
             
