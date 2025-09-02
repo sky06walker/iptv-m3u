@@ -16,7 +16,6 @@ routes = [
   { pattern = "*/*", script = "_worker" }
 ]
 
-[[env.production.d1_databases]]
-binding = "DB" # 在Worker中通过env.DB访问
-database_name = "iptv_config"
-database_id = "50bb6cf0-e379-4126-88f2-8c5324ecbd77" # 创建数据库后需要替换为实际ID
+[[kv_namespaces]]
+binding = "CONFIG_KV"
+id = "f431695090544ae6a9417d316d039e19"
