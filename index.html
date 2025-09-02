@@ -261,10 +261,7 @@
           <button class="add-source-btn" id="add-source-btn">+ Add Source</button>
         </div>
         
-        <div class="form-group" style="flex-direction: row; align-items: center;">
-          <input type="checkbox" id="use-std-name" checked style="width: auto; margin-right: 10px;">
-          <label for="use-std-name">Standardize channel names and groups</label>
-        </div>
+        <!-- 已移除标准化频道名称和分组功能 -->
         
         <button class="generate-btn" onclick="generateConfig()">Generate Custom URLs</button>
       </div>
@@ -327,8 +324,8 @@
       });
     }
     
-    // Remove a source input field
-    function removeSource(button) {
+    // Remove a source input field and delete from KV if exists
+    async function removeSource(button) {
       const sourceItem = button.parentElement;
       const sourceList = sourceItem.parentElement;
       
@@ -343,6 +340,29 @@
         if (optionToRemove) {
           primaryChineseKeySelect.removeChild(optionToRemove);
         }
+        
+        // 从KV中删除源
+        try {
+          // 保存按钮状态
+          const originalText = button.textContent;
+          button.textContent = '删除中...';
+          button.disabled = true;
+          
+          // 发送DELETE请求删除源
+          const response = await fetch(`/api/config/sources/${encodeURIComponent(key)}`, {
+            method: 'DELETE'
+          });
+          
+          if (!response.ok) {
+            console.warn(`Failed to delete source from KV: ${response.statusText}`);
+          } else {
+            console.log(`Source ${key} deleted from KV successfully`);
+          }
+          
+          // 恢复按钮状态 - 但由于元素即将被移除，这里不需要恢复
+        } catch (error) {
+          console.error('Error deleting source from KV:', error);
+        }
       }
       
       if (sourceList.children.length > 1) {
@@ -351,6 +371,9 @@
         sourceItem.querySelector('.source-key-input').value = '';
         sourceItem.querySelector('.source-input').value = '';
       }
+      
+      // 自动生成新的配置URL，以便立即应用源的更改
+      generateConfig();
     }
     
     // 从D1数据库加载配置
@@ -363,10 +386,7 @@
         
         const data = await response.json();
         
-        // 设置useStdName
-        if (data.config && data.config.use_std_name !== undefined) {
-          document.getElementById('use-std-name').checked = data.config.use_std_name === 1;
-        }
+        // 已移除标准化频道名称和分组功能
         
         // 清空现有源
         const sourceList = document.getElementById('source-list');
@@ -476,12 +496,8 @@
           throw new Error('主要中文源的键名和URL不能为空');
         }
         
-        // 获取useStdName设置 - 添加空值检查
-        const useStdNameElement = document.getElementById('use-std-name');
-        if (!useStdNameElement) {
-          throw new Error('无法找到标准名称设置复选框');
-        }
-        const useStdName = useStdNameElement.checked ? 1 : 0;
+        // 已移除标准化频道名称和分组功能
+      const useStdName = 0; // 默认为不使用标准化
         
         // 更新全局配置 - 增强错误处理
         let configResponse;
@@ -686,8 +702,8 @@
         sourceMap[primaryChineseKey] = primaryChineseUrl;
       }
       
-      // Get useStdName setting
-      const useStdName = document.getElementById('use-std-name').checked ? '1' : '0';
+      // 已移除标准化频道名称和分组功能
+      const useStdName = '0'; // 默认为不使用标准化
       
       if (!primaryChineseSource && sources.length === 0) {
         alert('Please enter at least one source with key and URL');
@@ -847,6 +863,9 @@
             document.getElementById('primary-chinese').value = selectedSource.url;
           }
         }
+        
+        // 自动生成新的配置URL，以便立即应用主要中文源的更改
+        generateConfig();
       });
     }
     

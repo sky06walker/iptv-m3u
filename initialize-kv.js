@@ -7,7 +7,6 @@ const toml = require('toml');
 // --- START OF CONFIGURATION ---
 
 const DEFAULT_CONFIG = {
-  use_std_name: 1,
   primary_chinese_source: 'm3u888'
 };
 

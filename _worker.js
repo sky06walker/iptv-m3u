@@ -178,7 +178,7 @@ export default {
         const config = {
           sources: dbSources.map(s => s.url),
           primaryChineseSource: SOURCE_MAP[dbConfig.primary_chinese_source] || '',
-          useStdName: useStdNameParam ? useStdNameParam === '1' : dbConfig.use_std_name === 1,
+          // 已移除标准化频道名称和分组功能
         };
         // --- END: LOAD CONFIG FROM KV ---
 
@@ -216,24 +216,10 @@ export default {
         
         const SOURCES = config.sources;
         const PRIMARY_CHINESE_SOURCE = config.primaryChineseSource;
-        const USE_STD_NAME = config.useStdName;
+        // 已移除标准化频道名称和分组功能
         const HEADER = '#EXTM3U';
 
-        const standardizeCategory = (group) => {
-          if (!group) return 'Uncategorized';
-          const g = group.toLowerCase();
-          const categoryMap = {
-            'news': 'News', 'sport': 'Sports', 'movie': 'Movies', 'music': 'Music', 'kids': 'Kids',
-            'children': 'Kids', 'documentary': 'Documentary', 'lifestyle': 'Lifestyle',
-            'entertainment': 'Entertainment', 'comedy': 'Comedy', 'series': 'Series',
-            'education': 'Education', 'local': 'Local', 'religion': 'Religious', 'shop': 'Shopping',
-            'Undefined': 'Others',
-          };
-          for (const key in categoryMap) {
-            if (g.includes(key)) return categoryMap[key];
-          }
-          return group;
-        };
+        // 已移除标准化频道名称和分组功能
 
         const parseM3U = (text, source) => {
           const lines = text.split(/\r?\n/).map(l => l.trim());
@@ -305,9 +291,8 @@ export default {
 
           for (const e of entries) {
             let newGroup = e.group;
-            if (USE_STD_NAME) {
-                newGroup = e.isDesignatedChinese ? '中文频道' : standardizeCategory(e.group);
-            }
+            // 已移除标准化频道名称和分组功能
+            newGroup = e.group;
             
             const commaIndex = e.info.lastIndexOf(',');
             if (commaIndex === -1) {
@@ -372,9 +357,6 @@ export default {
             const isFromPrimarySource = e.source === PRIMARY_CHINESE_SOURCE;
             if (isFromPrimarySource || hasChineseChars) {
                 e.isDesignatedChinese = true;
-                if (USE_STD_NAME) {
-                    e.group = '中文频道';
-                }
             }
         });
 
@@ -394,7 +376,7 @@ export default {
             let nextAvailableChno = 101;
             const findNextAvailableChannel = () => {
                 while (usedChannelNumbers.has(nextAvailableChno)) nextAvailableChno++;
-                return nextAvailableChно;
+                return nextAvailableChno;
             };
             const debugEntries = unique.map(e => {
                 let finalChannelNumber;
@@ -408,7 +390,7 @@ export default {
                 if (!usedChannelNumbers.has(finalChannelNumber)) {
                     usedChannelNumbers.add(finalChannelNumber);
                 }
-                const finalGroup = USE_STD_NAME ? (e.isDesignatedChinese ? '中文频道' : standardizeCategory(e.group)) : e.group;
+                const finalGroup = e.group;
                 return { ...e, finalChno: finalChannelNumber, finalGroup, originalChno: e.tvgChno || 'EMPTY' };
             });
             const body = [`... a lot of debug text ...`].join('\n'); // Debug text generation is the same
