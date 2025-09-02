@@ -22,17 +22,28 @@ async function handleConfigApi(request, env, ctx) {
     try {
       const sourceKey = url.pathname.split('/').pop();
       
-      // 检查源是否存在
-      const source = await env.DB.prepare(
-        "SELECT source_key FROM sources WHERE source_key = ?"
-      ).bind(sourceKey).first();
+      // 检查数据库绑定是否存在
+      if (!env.DB) {
+        throw new Error('Database binding not found');
+      }
       
-      if (source) {
-        return new Response(null, { status: 200, headers });
-      } else {
-        return new Response(null, { status: 404, headers });
+      try {
+        // 检查源是否存在
+        const source = await env.DB.prepare(
+          "SELECT source_key FROM sources WHERE source_key = ?"
+        ).bind(sourceKey).first();
+        
+        if (source) {
+          return new Response(null, { status: 200, headers });
+        } else {
+          return new Response(null, { status: 404, headers });
+        }
+      } catch (dbError) {
+        console.error('Database operation failed:', dbError);
+        throw new Error(`Database operation failed: ${dbError.message}`);
       }
     } catch (error) {
+      console.error('Error checking source existence:', error);
       return new Response(null, { status: 500, headers });
     }
   }
@@ -40,21 +51,39 @@ async function handleConfigApi(request, env, ctx) {
   // 获取所有配置
   if (method === 'GET' && url.pathname === '/api/config') {
     try {
-      // 获取全局配置
-      const configResult = await env.DB.prepare(
-        "SELECT use_std_name, primary_chinese_source FROM config WHERE id = 'default'"
-      ).first();
+      // 检查数据库绑定是否存在
+      if (!env.DB) {
+        throw new Error('Database binding not found. Please check your wrangler.toml configuration.');
+      }
       
-      // 获取所有源
-      const sourcesResult = await env.DB.prepare(
-        "SELECT source_key, source_url, is_active FROM sources"
-      ).all();
+      let configResult, sourcesResult;
+      
+      try {
+        // 获取全局配置
+        configResult = await env.DB.prepare(
+          "SELECT use_std_name, primary_chinese_source FROM config WHERE id = 'default'"
+        ).first();
+      } catch (dbError) {
+        console.error('Failed to fetch config:', dbError);
+        throw new Error(`Failed to fetch config: ${dbError.message}`);
+      }
+      
+      try {
+        // 获取所有源
+        sourcesResult = await env.DB.prepare(
+          "SELECT source_key, source_url, is_active FROM sources"
+        ).all();
+      } catch (dbError) {
+        console.error('Failed to fetch sources:', dbError);
+        throw new Error(`Failed to fetch sources: ${dbError.message}`);
+      }
       
       return new Response(JSON.stringify({
         config: configResult || {},
         sources: sourcesResult?.results || []
       }), { headers });
     } catch (error) {
+      console.error('Error fetching configuration:', error);
       return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
     }
   }
@@ -66,16 +95,27 @@ async function handleConfigApi(request, env, ctx) {
       
       // 更新全局配置
       if (data.config) {
-        await env.DB.prepare(
-          "UPDATE config SET use_std_name = ?, primary_chinese_source = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 'default'"
-        ).bind(
-          data.config.use_std_name ? 1 : 0,
-          data.config.primary_chinese_source
-        ).run();
+        // 检查数据库绑定是否存在
+        if (!env.DB) {
+          throw new Error('Database binding not found. Please check your wrangler.toml configuration.');
+        }
+        
+        try {
+          await env.DB.prepare(
+            "UPDATE config SET use_std_name = ?, primary_chinese_source = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 'default'"
+          ).bind(
+            data.config.use_std_name ? 1 : 0,
+            data.config.primary_chinese_source
+          ).run();
+        } catch (dbError) {
+          console.error('Database operation failed:', dbError);
+          throw new Error(`Database operation failed: ${dbError.message}`);
+        }
       }
       
       return new Response(JSON.stringify({ success: true }), { headers });
     } catch (error) {
+      console.error('Error updating config:', error);
       return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
     }
   }
@@ -89,16 +129,27 @@ async function handleConfigApi(request, env, ctx) {
         return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400, headers });
       }
       
-      // 添加新源
-      await env.DB.prepare(
-        "INSERT INTO sources (source_key, source_url) VALUES (?, ?)"
-      ).bind(
-        data.source_key,
-        data.source_url
-      ).run();
+      // 检查数据库绑定是否存在
+      if (!env.DB) {
+        throw new Error('Database binding not found. Please check your wrangler.toml configuration.');
+      }
+      
+      try {
+        // 添加新源
+        await env.DB.prepare(
+          "INSERT INTO sources (source_key, source_url) VALUES (?, ?)"
+        ).bind(
+          data.source_key,
+          data.source_url
+        ).run();
+      } catch (dbError) {
+        console.error('Database operation failed:', dbError);
+        throw new Error(`Database operation failed: ${dbError.message}`);
+      }
       
       return new Response(JSON.stringify({ success: true }), { headers });
     } catch (error) {
+      console.error('Error adding source:', error);
       return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
     }
   }
@@ -109,17 +160,28 @@ async function handleConfigApi(request, env, ctx) {
       const sourceKey = url.pathname.split('/').pop();
       const data = await request.json();
       
-      // 更新源
-      await env.DB.prepare(
-        "UPDATE sources SET source_url = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE source_key = ?"
-      ).bind(
-        data.source_url,
-        data.is_active ? 1 : 0,
-        sourceKey
-      ).run();
+      // 检查数据库绑定是否存在
+      if (!env.DB) {
+        throw new Error('Database binding not found. Please check your wrangler.toml configuration.');
+      }
+      
+      try {
+        // 更新源
+        await env.DB.prepare(
+          "UPDATE sources SET source_url = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE source_key = ?"
+        ).bind(
+          data.source_url,
+          data.is_active ? 1 : 0,
+          sourceKey
+        ).run();
+      } catch (dbError) {
+        console.error('Database operation failed:', dbError);
+        throw new Error(`Database operation failed: ${dbError.message}`);
+      }
       
       return new Response(JSON.stringify({ success: true }), { headers });
     } catch (error) {
+      console.error('Error updating source:', error);
       return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
     }
   }
@@ -129,13 +191,24 @@ async function handleConfigApi(request, env, ctx) {
     try {
       const sourceKey = url.pathname.split('/').pop();
       
-      // 删除源
-      await env.DB.prepare(
-        "DELETE FROM sources WHERE source_key = ?"
-      ).bind(sourceKey).run();
+      // 检查数据库绑定是否存在
+      if (!env.DB) {
+        throw new Error('Database binding not found. Please check your wrangler.toml configuration.');
+      }
+      
+      try {
+        // 删除源
+        await env.DB.prepare(
+          "DELETE FROM sources WHERE source_key = ?"
+        ).bind(sourceKey).run();
+      } catch (dbError) {
+        console.error('Database operation failed:', dbError);
+        throw new Error(`Database operation failed: ${dbError.message}`);
+      }
       
       return new Response(JSON.stringify({ success: true }), { headers });
     } catch (error) {
+      console.error('Error deleting source:', error);
       return new Response(JSON.stringify({ error: error.message }), { status: 500, headers });
     }
   }
@@ -147,6 +220,14 @@ async function handleConfigApi(request, env, ctx) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    
+    // 检查数据库绑定是否存在
+    if (!env.DB) {
+      return new Response(JSON.stringify({ error: 'Database binding not found. Please check your wrangler.toml configuration.' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     // 1) Quick health check
     if (url.pathname === '/hello') {
@@ -179,18 +260,35 @@ export default {
         
         // 尝试从D1数据库读取配置
         try {
+          // 检查数据库绑定是否存在
+          if (!env.DB) {
+            throw new Error('Database binding not found. Please check your wrangler.toml configuration.');
+          }
+          
           // 读取全局配置
-          const dbConfig = await env.DB.prepare(
-            "SELECT use_std_name, primary_chinese_source FROM config WHERE id = 'default'"
-          ).first();
+          let dbConfig;
+          try {
+            dbConfig = await env.DB.prepare(
+              "SELECT use_std_name, primary_chinese_source FROM config WHERE id = 'default'"
+            ).first();
+          } catch (dbError) {
+            console.error('Failed to fetch config:', dbError);
+            throw new Error(`Failed to fetch config: ${dbError.message}`);
+          }
           
           if (dbConfig) {
             config.useStdName = dbConfig.use_std_name === 1;
             
             // 读取源列表
-            const dbSources = await env.DB.prepare(
-              "SELECT source_key, source_url FROM sources WHERE is_active = 1"
-            ).all();
+            let dbSources;
+            try {
+              dbSources = await env.DB.prepare(
+                "SELECT source_key, source_url FROM sources WHERE is_active = 1"
+              ).all();
+            } catch (dbError) {
+              console.error('Failed to fetch sources:', dbError);
+              throw new Error(`Failed to fetch sources: ${dbError.message}`);
+            }
             
             if (dbSources && dbSources.results && dbSources.results.length > 0) {
               // 更新SOURCE_MAP
@@ -208,9 +306,15 @@ export default {
             }
           } else {
             // 如果没有配置记录，创建默认配置
-            await env.DB.prepare(
-              "INSERT INTO config (id, use_std_name, primary_chinese_source) VALUES ('default', 1, 'm3u888')"
-            ).run();
+            try {
+              await env.DB.prepare(
+                "INSERT INTO config (id, use_std_name, primary_chinese_source) VALUES ('default', 1, 'm3u888')"
+              ).run();
+            } catch (dbError) {
+              console.error('Failed to create default config:', dbError);
+              throw new Error(`Failed to create default config: ${dbError.message}`);
+            }
+            
             config.useStdName = true;
             config.primaryChineseSource = 'm3u888';
             
@@ -224,18 +328,30 @@ export default {
             // 批量插入默认源
             const batch = [];
             for (const source of defaultSources) {
-              batch.push(
-                env.DB.prepare(
-                  "INSERT INTO sources (source_key, source_url, is_active) VALUES (?, ?, ?)"
-                ).bind(source.key, source.url, source.is_active)
-              );
+              try {
+                batch.push(
+                  env.DB.prepare(
+                    "INSERT INTO sources (source_key, source_url, is_active) VALUES (?, ?, ?)"
+                  ).bind(source.key, source.url, source.is_active)
+                );
+              } catch (dbError) {
+                console.error(`Failed to prepare insert for source ${source.key}:`, dbError);
+                // 继续处理其他源
+              }
               
               // 同时更新内存中的SOURCE_MAP和config.sources
               SOURCE_MAP[source.key] = source.url;
               config.sources.push(source.url);
             }
             
-            await env.DB.batch(batch);
+            try {
+              if (batch.length > 0) {
+                await env.DB.batch(batch);
+              }
+            } catch (dbError) {
+              console.error('Failed to batch insert default sources:', dbError);
+              throw new Error(`Failed to batch insert default sources: ${dbError.message}`);
+            }
           }
         } catch (error) {
           console.error('Error fetching config from D1:', error);
