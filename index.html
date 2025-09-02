@@ -389,39 +389,63 @@
     // 保存配置到D1数据库
     async function saveConfigToDB() {
       try {
-        // 显示保存状态
-        const saveBtn = document.querySelector('button[onclick="saveConfigToDB()"]');
-        const originalText = saveBtn.textContent;
+        // 显示保存状态 - 使用ID选择器
+        const saveBtn = document.getElementById('save-config-btn');
+        if (!saveBtn) {
+          throw new Error('无法找到保存按钮');
+        }
+        const originalText = saveBtn.textContent || '保存配置到数据库';
         saveBtn.textContent = '保存中...';
         saveBtn.disabled = true;
         
-        // 获取主要中文源的键
-        const primaryChineseKey = document.getElementById('primary-chinese-key').value.trim();
-        const primaryChineseUrl = document.getElementById('primary-chinese').value.trim();
+        // 获取主要中文源的键 - 添加空值检查
+        const primaryChineseKeyElement = document.getElementById('primary-chinese-key');
+        const primaryChineseElement = document.getElementById('primary-chinese');
+        
+        if (!primaryChineseKeyElement || !primaryChineseElement) {
+          throw new Error('无法找到主要中文源输入元素');
+        }
+        
+        const primaryChineseKey = primaryChineseKeyElement.value.trim();
+        const primaryChineseUrl = primaryChineseElement.value.trim();
         
         if (!primaryChineseKey || !primaryChineseUrl) {
           throw new Error('主要中文源的键名和URL不能为空');
         }
         
-        // 获取useStdName设置
-        const useStdName = document.getElementById('use-std-name').checked ? 1 : 0;
+        // 获取useStdName设置 - 添加空值检查
+        const useStdNameElement = document.getElementById('use-std-name');
+        if (!useStdNameElement) {
+          throw new Error('无法找到标准名称设置复选框');
+        }
+        const useStdName = useStdNameElement.checked ? 1 : 0;
         
-        // 更新全局配置
-        const configResponse = await fetch('/api/config', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            config: {
-              use_std_name: useStdName,
-              primary_chinese_source: primaryChineseKey
-            }
-          })
-        });
+        // 更新全局配置 - 增强错误处理
+        let configResponse;
+        try {
+          configResponse = await fetch('/api/config', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              config: {
+                use_std_name: useStdName,
+                primary_chinese_source: primaryChineseKey
+              }
+            })
+          });
+        } catch (fetchError) {
+          throw new Error(`网络请求失败: ${fetchError.message}`);
+        }
+        
+        if (!configResponse) {
+          throw new Error('配置保存请求失败，未收到响应');
+        }
         
         if (!configResponse.ok) {
-          throw new Error(`Failed to save config: ${configResponse.statusText}`);
+          const errorText = await configResponse.text().catch(() => '未知错误');
+          throw new Error(`配置保存失败: ${configResponse.status} ${configResponse.statusText} - ${errorText}`);
         }
         
         // 收集所有源
@@ -497,8 +521,8 @@
         console.error('Error saving config to DB:', error);
         alert(`Failed to save configuration: ${error.message}`);
         
-        // 恢复按钮状态
-        const saveBtn = document.querySelector('button[onclick="saveConfigToDB()"]');
+        // 恢复按钮状态 - 使用ID选择器
+        const saveBtn = document.getElementById('save-config-btn');
         if (saveBtn) {
           saveBtn.textContent = '保存配置到数据库';
           saveBtn.disabled = false;
@@ -510,9 +534,18 @@
     
     // Generate configuration URLs
     function generateConfig() {
-      // 获取主要中文源的键和URL
-      const primaryChineseKey = document.getElementById('primary-chinese-key').value.trim();
-      const primaryChineseUrl = document.getElementById('primary-chinese').value.trim();
+      // 获取主要中文源的键和URL - 添加空值检查
+      const primaryChineseKeyElement = document.getElementById('primary-chinese-key');
+      const primaryChineseElement = document.getElementById('primary-chinese');
+      
+      if (!primaryChineseKeyElement || !primaryChineseElement) {
+        console.error('无法找到主要中文源输入元素');
+        alert('无法找到主要中文源输入元素');
+        return false;
+      }
+      
+      const primaryChineseKey = primaryChineseKeyElement.value.trim();
+      const primaryChineseUrl = primaryChineseElement.value.trim();
       
       // 确定primaryChineseSource参数
       let primaryChineseSource = null;
@@ -655,14 +688,18 @@
       const saveButton = document.createElement('button');
       saveButton.textContent = '保存配置到数据库';
       saveButton.className = 'generate-btn';
+      saveButton.id = 'save-config-btn'; // 添加ID选择器
       saveButton.style.backgroundColor = '#4caf50';
-      saveButton.onclick = saveConfigToDB;
+      // 使用addEventListener替代直接赋值onclick
+      saveButton.addEventListener('click', saveConfigToDB);
       
       // 创建新的生成按钮
       const newGenerateBtn = document.createElement('button');
       newGenerateBtn.textContent = '生成自定义URL';
       newGenerateBtn.className = 'generate-btn';
-      newGenerateBtn.onclick = generateConfig;
+      newGenerateBtn.id = 'generate-config-btn'; // 添加ID选择器
+      // 使用addEventListener替代直接赋值onclick
+      newGenerateBtn.addEventListener('click', generateConfig);
       
       // 添加按钮到容器
       buttonContainer.appendChild(saveButton);
