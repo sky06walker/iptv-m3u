@@ -355,10 +355,11 @@ export default {
         all.forEach(e => {
             const hasChineseChars = /[\u4e00-\u9fa5]/.test(e.name);
             const isFromPrimarySource = e.source === PRIMARY_CHINESE_SOURCE;
-            // 如果有指定主要中文源，则只将该源中的频道标记为中文频道
+            
+            // 如果有指定主要中文源，则该源中的所有频道都标记为中文频道
             // 如果没有指定主要中文源，则将所有包含中文字符的频道标记为中文频道
             if (PRIMARY_CHINESE_SOURCE) {
-                // 如果指定了主要中文源，只有来自该源的频道才被标记为中文频道
+                // 如果指定了主要中文源，该源中的所有频道都被标记为中文频道
                 if (isFromPrimarySource) {
                     e.isDesignatedChinese = true;
                 }
@@ -371,7 +372,15 @@ export default {
         });
 
 
-        if (isChineseOnly) { all = all.filter(e => e.isDesignatedChinese); }
+        if (isChineseOnly) { 
+            if (PRIMARY_CHINESE_SOURCE) {
+                // 如果指定了主要中文源，chinese.m3u 应该包含该源的所有频道
+                all = all.filter(e => e.source === PRIMARY_CHINESE_SOURCE);
+            } else {
+                // 如果没有指定主要中文源，则只包含被标记为中文的频道
+                all = all.filter(e => e.isDesignatedChinese); 
+            }
+        }
 
         const unique = dedupe(all).sort((a, b) => a.name.localeCompare(b.name) || a.tvgId.localeCompare(b.tvgId));
 
