@@ -137,7 +137,7 @@ export default {
       try {
         const debug = url.searchParams.get('debug') || url.pathname === '/debug/directory';
         // 只有在生成 chinese.m3u 时才过滤中文频道，debug/directory 不过滤
-        const isChineseOnly = url.pathname === '/chinese.m3u' && !debug;
+        const isChineseOnly = url.pathname === '/chinese.m3u';
         const useStdNameParam = url.searchParams.get('useStdName');
 
         // --- START: LOAD CONFIG FROM KV ---
