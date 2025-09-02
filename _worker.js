@@ -24,12 +24,12 @@ async function handleConfigApi(request, env) {
     return new Response(JSON.stringify({ error: 'KV namespace "CONFIG_KV" not found. Please check your wrangler.toml configuration.' }), { status: 500, headers });
   }
 
-  // Check source existence (HEAD)
-  if (method === 'HEAD' && url.pathname.startsWith('/api/config/sources/')) {
+  // Check source existence (HEAD or GET)
+  if ((method === 'HEAD' || method === 'GET') && url.pathname.startsWith('/api/config/sources/') && url.pathname.split('/').length === 5) {
     const sourceKey = url.pathname.split('/').pop();
-    const data = await kv.get(`source:${sourceKey}`);
+    const data = await kv.get(`source:${sourceKey}`, { type: 'json' });
     const status = data !== null ? 200 : 404;
-    return new Response(null, { status, headers });
+    return new Response(JSON.stringify(data || {}), { status, headers });
   }
 
   // Get all configuration (GET)
@@ -355,7 +355,9 @@ export default {
         all.forEach(e => {
             const hasChineseChars = /[\u4e00-\u9fa5]/.test(e.name);
             const isFromPrimarySource = e.source === PRIMARY_CHINESE_SOURCE;
-            if (isFromPrimarySource || hasChineseChars) {
+            // 如果有指定主要中文源，则只将该源中的频道标记为中文频道
+            // 如果没有指定主要中文源，则将所有包含中文字符的频道标记为中文频道
+            if ((PRIMARY_CHINESE_SOURCE && isFromPrimarySource) || (!PRIMARY_CHINESE_SOURCE && hasChineseChars)) {
                 e.isDesignatedChinese = true;
             }
         });
@@ -393,7 +395,30 @@ export default {
                 const finalGroup = e.group;
                 return { ...e, finalChno: finalChannelNumber, finalGroup, originalChno: e.tvgChno || 'EMPTY' };
             });
-            const body = [`... a lot of debug text ...`].join('\n'); // Debug text generation is the same
+            // 生成详细的debug信息
+            const groupedEntries = {};
+            debugEntries.forEach(entry => {
+                if (!groupedEntries[entry.finalGroup]) {
+                    groupedEntries[entry.finalGroup] = [];
+                }
+                groupedEntries[entry.finalGroup].push(entry);
+            });
+            
+            const debugLines = [
+                `总频道数: ${debugEntries.length}`,
+                `总分组数: ${Object.keys(groupedEntries).length}`,
+                '\n分组频道列表:'
+            ];
+            
+            Object.keys(groupedEntries).sort().forEach(group => {
+                const entries = groupedEntries[group];
+                debugLines.push(`\n分组: ${group} (${entries.length}个频道)`);
+                entries.sort((a, b) => a.finalChno - b.finalChno).forEach(entry => {
+                    debugLines.push(`  ${entry.finalChno}: ${entry.name} [${entry.tvgId || 'NO-ID'}] (原始频道号: ${entry.originalChno})`);
+                });
+            });
+            
+            const body = debugLines.join('\n');
             return new Response(body, { headers: { 'content-type': 'text/plain; charset=utf-8' } });
         }
         

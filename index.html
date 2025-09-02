@@ -355,11 +355,15 @@
           
           if (!response.ok) {
             console.warn(`Failed to delete source from KV: ${response.statusText}`);
+            // 恢复按钮状态
+            button.textContent = originalText;
+            button.disabled = false;
+            return; // 如果删除失败，不继续执行
           } else {
             console.log(`Source ${key} deleted from KV successfully`);
           }
           
-          // 恢复按钮状态 - 但由于元素即将被移除，这里不需要恢复
+          // 不需要恢复按钮状态，因为元素将被移除
         } catch (error) {
           console.error('Error deleting source from KV:', error);
         }
@@ -561,9 +565,9 @@
         // 处理所有源 - 使用Promise.all并行处理所有源
         const sourcePromises = sources.map(async (source) => {
           try {
-            // 检查源是否已存在
+            // 检查源是否已存在 - 使用GET而不是HEAD，因为某些环境可能不支持HEAD请求
             const checkResponse = await fetch(`/api/config/sources/${encodeURIComponent(source.key)}`, {
-              method: 'HEAD'
+              method: 'GET'
             });
             
             if (checkResponse.status === 200) {
