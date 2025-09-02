@@ -2,12 +2,6 @@ name = "iptv-m3u"
 main = "_worker.js"
 compatibility_date = "2023-10-16"
 
-# 配置D1数据库绑定
-[[d1_databases]]
-binding = "DB" # 在Worker中通过env.DB访问
-database_name = "iptv_config"
-database_id = "50bb6cf0-e379-4126-88f2-8c5324ecbd77" # 创建数据库后需要替换为实际ID
-
 # 配置静态资源绑定
 [site]
 bucket = "./" # 静态资源目录
@@ -15,9 +9,14 @@ bucket = "./" # 静态资源目录
 [build]
 command = "" # 无需构建命令
 
-# 配置路由
+# 配置路由和数据库
 [env.production]
 routes = [
   { pattern = "/api/*", script = "_worker" },
   { pattern = "*/*", script = "_worker" }
 ]
+
+[[env.production.d1_databases]]
+binding = "DB" # 在Worker中通过env.DB访问
+database_name = "iptv_config"
+database_id = "50bb6cf0-e379-4126-88f2-8c5324ecbd77" # 创建数据库后需要替换为实际ID
