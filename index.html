@@ -258,7 +258,7 @@
           <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
         </div>
           </div>
-          <button class="add-source-btn" onclick="addSource()">+ Add Source</button>
+          <button class="add-source-btn" id="add-source-btn">+ Add Source</button>
         </div>
         
         <div class="form-group" style="flex-direction: row; align-items: center;">
@@ -426,18 +426,18 @@
             document.getElementById('primary-chinese').value = allSources[0].url;
           }
         } else {
-          // 至少添加一个空源输入框
-          addSource();
+          // 如果没有找到源，初始化默认源
+          console.log('No sources found in DB, initializing default sources');
+          initializeDefaultSources();
         }
         
         return true;
       } catch (error) {
         console.error('Error loading config from DB:', error);
-        // 出错时至少添加一个空源输入框
-        const sourceList = document.getElementById('source-list');
-        if (sourceList.children.length === 0) {
-          addSource();
-        }
+        // 出错时初始化默认源
+        console.log('Error loading config, initializing default sources');
+        initializeDefaultSources();
+        
         // 显示保存配置按钮，允许用户创建新配置
         const saveBtn = document.createElement('button');
         saveBtn.textContent = '保存配置到数据库';
@@ -781,11 +781,86 @@
       }, 2000);
     }
     
+    // 初始化默认源
+    function initializeDefaultSources() {
+      // 默认源的键值对
+      const defaultSources = [
+        { key: 'aktv', url: 'https://aktv.space/live.m3u' },
+        { key: 'iptv-org', url: 'https://iptv-org.github.io/iptv/index.m3u' },
+        { key: 'm3u888', url: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u' }
+      ];
+      
+      // 清空主要中文源下拉菜单选项
+      const primaryChineseKeySelect = document.getElementById('primary-chinese-key');
+      primaryChineseKeySelect.innerHTML = '';
+      
+      // 为每个源添加到下拉菜单
+      defaultSources.forEach(source => {
+        const option = document.createElement('option');
+        option.value = source.key;
+        option.textContent = source.key;
+        primaryChineseKeySelect.appendChild(option);
+      });
+      
+      // 设置默认主要中文源
+      primaryChineseKeySelect.value = 'm3u888';
+      document.getElementById('primary-chinese').value = defaultSources.find(s => s.key === 'm3u888').url;
+      
+      // 设置源列表
+      const sourceList = document.getElementById('source-list');
+      sourceList.innerHTML = '';
+      
+      defaultSources.forEach(source => {
+        const sourceItem = document.createElement('div');
+        sourceItem.className = 'source-item';
+        sourceItem.innerHTML = `
+          <input type="text" class="source-key-input" placeholder="Enter key name" value="${source.key}" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
+          <input type="text" class="source-input" placeholder="Enter URL value" value="${source.url}" style="flex: 2;">
+          <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
+        `;
+        sourceList.appendChild(sourceItem);
+      });
+      
+      // 添加主要中文源下拉菜单变更事件监听器
+      primaryChineseKeySelect.addEventListener('change', function() {
+        const selectedKey = this.value;
+        
+        // 在所有源中查找匹配的URL
+        const sourceItems = document.querySelectorAll('.source-item');
+        let foundUrl = '';
+        
+        sourceItems.forEach(item => {
+          const keyInput = item.querySelector('.source-key-input');
+          const urlInput = item.querySelector('.source-input');
+          
+          if (keyInput && urlInput && keyInput.value.trim() === selectedKey) {
+            foundUrl = urlInput.value.trim();
+          }
+        });
+        
+        // 如果找到匹配的URL，则更新主要中文源URL输入框
+        if (foundUrl) {
+          document.getElementById('primary-chinese').value = foundUrl;
+        } else {
+          const selectedSource = defaultSources ? defaultSources.find(s => s.key === selectedKey) : null;
+          if (selectedSource) {
+            document.getElementById('primary-chinese').value = selectedSource.url;
+          }
+        }
+      });
+    }
+    
     // Initialize with default sources
     window.onload = async function() {
       // 添加保存配置按钮
       const configForm = document.querySelector('.config-form');
       const generateBtn = configForm.querySelector('.generate-btn');
+      
+      // 添加 addSource 按钮的事件监听器
+      const addSourceBtn = document.getElementById('add-source-btn');
+      if (addSourceBtn) {
+        addSourceBtn.addEventListener('click', addSource);
+      }
       
       // 创建按钮容器
       const buttonContainer = document.createElement('div');
@@ -843,76 +918,7 @@
       });
       
       // 尝试从数据库加载配置
-      const loaded = await loadConfigFromDB();
-      
-      // 如果加载失败，使用默认源
-      if (!loaded) {
-        // 默认源的键值对
-        const defaultSources = [
-          { key: 'aktv', url: 'https://aktv.space/live.m3u' },
-          { key: 'iptv-org', url: 'https://iptv-org.github.io/iptv/index.m3u' },
-          { key: 'm3u888', url: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u' }
-        ];
-        
-        // 清空主要中文源下拉菜单选项
-        const primaryChineseKeySelect = document.getElementById('primary-chinese-key');
-        primaryChineseKeySelect.innerHTML = '';
-        
-        // 为每个源添加到下拉菜单
-        defaultSources.forEach(source => {
-          const option = document.createElement('option');
-          option.value = source.key;
-          option.textContent = source.key;
-          primaryChineseKeySelect.appendChild(option);
-        });
-        
-        // 设置默认主要中文源
-        primaryChineseKeySelect.value = 'm3u888';
-        document.getElementById('primary-chinese').value = defaultSources.find(s => s.key === 'm3u888').url;
-        
-        // 设置源列表
-        const sourceList = document.getElementById('source-list');
-        sourceList.innerHTML = '';
-        
-        defaultSources.forEach(source => {
-          const sourceItem = document.createElement('div');
-          sourceItem.className = 'source-item';
-          sourceItem.innerHTML = `
-            <input type="text" class="source-key-input" placeholder="Enter key name" value="${source.key}" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
-            <input type="text" class="source-input" placeholder="Enter URL value" value="${source.url}" style="flex: 2;">
-            <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
-          `;
-          sourceList.appendChild(sourceItem);
-        });
-        
-        // 添加主要中文源下拉菜单变更事件监听器
-         primaryChineseKeySelect.addEventListener('change', function() {
-           const selectedKey = this.value;
-           
-           // 在所有源中查找匹配的URL
-           const sourceItems = document.querySelectorAll('.source-item');
-           let foundUrl = '';
-           
-           sourceItems.forEach(item => {
-             const keyInput = item.querySelector('.source-key-input');
-             const urlInput = item.querySelector('.source-input');
-             
-             if (keyInput && urlInput && keyInput.value.trim() === selectedKey) {
-               foundUrl = urlInput.value.trim();
-             }
-           });
-           
-           // 如果找到匹配的URL，则更新主要中文源URL输入框
-           if (foundUrl) {
-             document.getElementById('primary-chinese').value = foundUrl;
-           } else {
-             const selectedSource = defaultSources ? defaultSources.find(s => s.key === selectedKey) : null;
-             if (selectedSource) {
-               document.getElementById('primary-chinese').value = selectedSource.url;
-             }
-           }
-         });
-      }
+      await loadConfigFromDB();
         
         // 添加使用说明
         const helpText = document.createElement('div');
