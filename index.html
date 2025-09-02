@@ -244,7 +244,7 @@
         <div class="form-group">
           <label for="primary-chinese-key">Primary Chinese Source:</label>
           <div style="display: flex; gap: 10px;">
-            <input type="text" id="primary-chinese-key" placeholder="Enter key name" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);">
+            <select id="primary-chinese-key" style="flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #2a2a2a; color: var(--text-color);"></select>
             <input type="text" id="primary-chinese" placeholder="Enter URL value" style="flex: 2;">
           </div>
         </div>
@@ -307,16 +307,49 @@
         <button class="remove-source-btn" onclick="removeSource(this)">✕</button>
       `;
       sourceList.appendChild(sourceItem);
+      
+      // Add the new source key to the primary Chinese source dropdown when it changes
+      const keyInput = sourceItem.querySelector('.source-key-input');
+      keyInput.addEventListener('change', function() {
+        const newKey = keyInput.value.trim();
+        if (newKey) {
+          const primaryChineseKeySelect = document.getElementById('primary-chinese-key');
+          const existingOption = Array.from(primaryChineseKeySelect.options).find(option => option.value === newKey);
+          
+          // Only add if the option doesn't already exist
+          if (!existingOption) {
+            const option = document.createElement('option');
+            option.value = newKey;
+            option.textContent = newKey;
+            primaryChineseKeySelect.appendChild(option);
+          }
+        }
+      });
     }
     
     // Remove a source input field
     function removeSource(button) {
       const sourceItem = button.parentElement;
       const sourceList = sourceItem.parentElement;
+      
+      // Get the key value before removing
+      const keyInput = sourceItem.querySelector('.source-key-input');
+      const key = keyInput ? keyInput.value.trim() : '';
+      
+      // Remove the option from primary Chinese source dropdown if it exists
+      if (key) {
+        const primaryChineseKeySelect = document.getElementById('primary-chinese-key');
+        const optionToRemove = Array.from(primaryChineseKeySelect.options).find(option => option.value === key);
+        if (optionToRemove) {
+          primaryChineseKeySelect.removeChild(optionToRemove);
+        }
+      }
+      
       if (sourceList.children.length > 1) {
         sourceList.removeChild(sourceItem);
       } else {
-        sourceItem.querySelector('input').value = '';
+        sourceItem.querySelector('.source-key-input').value = '';
+        sourceItem.querySelector('.source-input').value = '';
       }
     }
     
@@ -345,8 +378,31 @@
           primaryChineseKey = data.config.primary_chinese_source;
         }
         
+        // 清空下拉菜单
+        const primaryChineseKeySelect = document.getElementById('primary-chinese-key');
+        primaryChineseKeySelect.innerHTML = '';
+        
         // 添加所有源
         if (data.sources && data.sources.length > 0) {
+          // 首先收集所有源信息
+          const allSources = [];
+          
+          data.sources.forEach(source => {
+            allSources.push({
+              key: source.source_key,
+              url: source.source_url
+            });
+          });
+          
+          // 为下拉菜单添加选项 - 确保所有源都被添加到下拉菜单中
+          allSources.forEach(source => {
+            const option = document.createElement('option');
+            option.value = source.key;
+            option.textContent = source.key;
+            primaryChineseKeySelect.appendChild(option);
+          });
+          
+          // 添加所有源到源列表
           data.sources.forEach(source => {
             addSource();
             const lastItem = sourceList.lastElementChild;
@@ -355,13 +411,20 @@
             
             keyInput.value = source.source_key;
             urlInput.value = source.source_url;
-            
-            // 如果是主要中文源，设置到主要中文源输入框
-            if (source.source_key === primaryChineseKey) {
-              document.getElementById('primary-chinese-key').value = source.source_key;
-              document.getElementById('primary-chinese').value = source.source_url;
-            }
           });
+          
+          // 设置主要中文源下拉菜单和URL
+          if (primaryChineseKey) {
+            primaryChineseKeySelect.value = primaryChineseKey;
+            const selectedSource = allSources.find(s => s.key === primaryChineseKey);
+            if (selectedSource) {
+              document.getElementById('primary-chinese').value = selectedSource.url;
+            }
+          } else if (allSources.length > 0) {
+            // 如果没有设置主要中文源但有可用源，则默认选择第一个
+            primaryChineseKeySelect.value = allSources[0].key;
+            document.getElementById('primary-chinese').value = allSources[0].url;
+          }
         } else {
           // 至少添加一个空源输入框
           addSource();
@@ -453,12 +516,7 @@
         const sources = [];
         const usedKeys = new Set();
         
-        // 检查主键是否重复
-        if (usedKeys.has(primaryChineseKey)) {
-          throw new Error(`源键名 "${primaryChineseKey}" 重复，请确保每个源的键名唯一`);
-        }
-        usedKeys.add(primaryChineseKey);
-        
+        // 首先收集所有源键值对，检查键名是否为空或重复
         for (const item of sourceItems) {
           const keyInput = item.querySelector('.source-key-input');
           const urlInput = item.querySelector('.source-input');
@@ -466,45 +524,80 @@
           const key = keyInput.value.trim();
           const url = urlInput.value.trim();
           
-          if (key && url) {
+          // 只处理键名不为空的源
+          if (key) {
             // 检查键是否重复
             if (usedKeys.has(key)) {
               throw new Error(`源键名 "${key}" 重复，请确保每个源的键名唯一`);
             }
             usedKeys.add(key);
             
+            // 只保存键名和URL都不为空的源
+            if (url) {
+              sources.push({ key, url });
+            } else {
+              // 键名存在但URL为空，提示用户
+              throw new Error(`源 "${key}" 的URL不能为空`);
+            }
+          }
+        }
+        
+        // 处理所有源 - 使用Promise.all并行处理所有源
+        const sourcePromises = sources.map(async (source) => {
+          try {
             // 检查源是否已存在
-            const checkResponse = await fetch(`/api/config/sources/${encodeURIComponent(key)}`, {
+            const checkResponse = await fetch(`/api/config/sources/${encodeURIComponent(source.key)}`, {
               method: 'HEAD'
             });
             
             if (checkResponse.status === 200) {
               // 更新现有源
-              await fetch(`/api/config/sources/${encodeURIComponent(key)}`, {
+              const updateResponse = await fetch(`/api/config/sources/${encodeURIComponent(source.key)}`, {
                 method: 'PUT',
                 headers: {
                   'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                  source_url: url,
+                  source_url: source.url,
                   is_active: true
                 })
               });
+              
+              if (!updateResponse.ok) {
+                const errorText = await updateResponse.text().catch(() => '未知错误');
+                throw new Error(`更新源 "${source.key}" 失败: ${updateResponse.status} ${updateResponse.statusText} - ${errorText}`);
+              }
+              
+              console.log(`源 ${source.key} 已更新`);
             } else {
               // 添加新源
-              await fetch('/api/config/sources', {
+              const createResponse = await fetch('/api/config/sources', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                  source_key: key,
-                  source_url: url
+                  source_key: source.key,
+                  source_url: source.url
                 })
               });
+              
+              if (!createResponse.ok) {
+                const errorText = await createResponse.text().catch(() => '未知错误');
+                throw new Error(`创建源 "${source.key}" 失败: ${createResponse.status} ${createResponse.statusText} - ${errorText}`);
+              }
+              
+              console.log(`源 ${source.key} 已创建`);
             }
+            return source.key;
+          } catch (error) {
+            console.error(`处理源 ${source.key} 时出错:`, error);
+            throw error; // 重新抛出错误以便Promise.all捕获
           }
-        }
+        });
+        
+        // 等待所有源处理完成
+        await Promise.all(sourcePromises);
         
         // 恢复按钮状态并显示成功消息
         saveBtn.textContent = '保存成功！';
@@ -535,16 +628,16 @@
     // Generate configuration URLs
     function generateConfig() {
       // 获取主要中文源的键和URL - 添加空值检查
-      const primaryChineseKeyElement = document.getElementById('primary-chinese-key');
+      const primaryChineseKeySelect = document.getElementById('primary-chinese-key');
       const primaryChineseElement = document.getElementById('primary-chinese');
       
-      if (!primaryChineseKeyElement || !primaryChineseElement) {
+      if (!primaryChineseKeySelect || !primaryChineseElement) {
         console.error('无法找到主要中文源输入元素');
         alert('无法找到主要中文源输入元素');
         return false;
       }
       
-      const primaryChineseKey = primaryChineseKeyElement.value.trim();
+      const primaryChineseKey = primaryChineseKeySelect.value.trim();
       const primaryChineseUrl = primaryChineseElement.value.trim();
       
       // 确定primaryChineseSource参数
@@ -558,6 +651,10 @@
       const sourceMap = {};
       const sourceItems = document.querySelectorAll('.source-item');
       
+      // 检查源键名是否重复
+      const usedKeys = new Set();
+      let hasDuplicateKey = false;
+      
       sourceItems.forEach(item => {
         const keyInput = item.querySelector('.source-key-input');
         const urlInput = item.querySelector('.source-input');
@@ -565,11 +662,24 @@
         const key = keyInput.value.trim();
         const url = urlInput.value.trim();
         
-        if (key && url && key !== primaryChineseKey) {
-          sources.push(key);
+        if (key && url) {
+          if (usedKeys.has(key)) {
+            hasDuplicateKey = true;
+            alert(`源键名 "${key}" 重复，请确保每个源的键名唯一`);
+            return;
+          }
+          usedKeys.add(key);
+          
+          if (key !== primaryChineseKey) {
+            sources.push(key);
+          }
           sourceMap[key] = url;
         }
       });
+      
+      if (hasDuplicateKey) {
+        return false;
+      }
       
       // 添加主要中文源到sourceMap
       if (primaryChineseKey && primaryChineseUrl) {
@@ -708,6 +818,30 @@
       // 替换原始生成按钮
       generateBtn.parentNode.replaceChild(buttonContainer, generateBtn);
       
+      // 添加主要中文源下拉菜单变更事件监听器
+      const primaryChineseKeySelect = document.getElementById('primary-chinese-key');
+      primaryChineseKeySelect.addEventListener('change', function() {
+        const selectedKey = this.value;
+        
+        // 在所有源中查找匹配的URL
+        const sourceItems = document.querySelectorAll('.source-item');
+        let foundUrl = '';
+        
+        sourceItems.forEach(item => {
+          const keyInput = item.querySelector('.source-key-input');
+          const urlInput = item.querySelector('.source-input');
+          
+          if (keyInput && urlInput && keyInput.value.trim() === selectedKey) {
+            foundUrl = urlInput.value.trim();
+          }
+        });
+        
+        // 如果找到匹配的URL，则更新主要中文源URL输入框
+        if (foundUrl) {
+          document.getElementById('primary-chinese').value = foundUrl;
+        }
+      });
+      
       // 尝试从数据库加载配置
       const loaded = await loadConfigFromDB();
       
@@ -720,8 +854,20 @@
           { key: 'm3u888', url: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u' }
         ];
         
+        // 清空主要中文源下拉菜单选项
+        const primaryChineseKeySelect = document.getElementById('primary-chinese-key');
+        primaryChineseKeySelect.innerHTML = '';
+        
+        // 为每个源添加到下拉菜单
+        defaultSources.forEach(source => {
+          const option = document.createElement('option');
+          option.value = source.key;
+          option.textContent = source.key;
+          primaryChineseKeySelect.appendChild(option);
+        });
+        
         // 设置默认主要中文源
-        document.getElementById('primary-chinese-key').value = 'm3u888';
+        primaryChineseKeySelect.value = 'm3u888';
         document.getElementById('primary-chinese').value = defaultSources.find(s => s.key === 'm3u888').url;
         
         // 设置源列表
@@ -738,6 +884,35 @@
           `;
           sourceList.appendChild(sourceItem);
         });
+        
+        // 添加主要中文源下拉菜单变更事件监听器
+         primaryChineseKeySelect.addEventListener('change', function() {
+           const selectedKey = this.value;
+           
+           // 在所有源中查找匹配的URL
+           const sourceItems = document.querySelectorAll('.source-item');
+           let foundUrl = '';
+           
+           sourceItems.forEach(item => {
+             const keyInput = item.querySelector('.source-key-input');
+             const urlInput = item.querySelector('.source-input');
+             
+             if (keyInput && urlInput && keyInput.value.trim() === selectedKey) {
+               foundUrl = urlInput.value.trim();
+             }
+           });
+           
+           // 如果找到匹配的URL，则更新主要中文源URL输入框
+           if (foundUrl) {
+             document.getElementById('primary-chinese').value = foundUrl;
+           } else {
+             const selectedSource = defaultSources ? defaultSources.find(s => s.key === selectedKey) : null;
+             if (selectedSource) {
+               document.getElementById('primary-chinese').value = selectedSource.url;
+             }
+           }
+         });
+      }
         
         // 添加使用说明
         const helpText = document.createElement('div');
