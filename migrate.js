@@ -9,7 +9,9 @@
 const DEFAULT_SOURCES = [
   { key: 'aktv', url: 'https://aktv.space/live.m3u', is_active: 1 },
   { key: 'iptv-org', url: 'https://iptv-org.github.io/iptv/index.m3u', is_active: 1 },
-  { key: 'm3u888', url: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u', is_active: 1 }
+  { key: 'm3u888', url: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u', is_active: 1 },
+  { key: 'epg-best', url: 'https://epg.best/live.m3u', is_active: 1 },
+  { key: 'iptv-plus', url: 'https://iptv-plus.net/live.m3u', is_active: 1 }
 ];
 
 // 默认全局配置

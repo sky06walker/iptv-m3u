@@ -375,6 +375,13 @@
         if (sourceList.children.length === 0) {
           addSource();
         }
+        // 显示保存配置按钮，允许用户创建新配置
+        const saveBtn = document.createElement('button');
+        saveBtn.textContent = '保存配置到数据库';
+        saveBtn.className = 'generate-btn';
+        saveBtn.style.marginTop = '1rem';
+        saveBtn.onclick = saveConfigToDB;
+        document.querySelector('.config-section').appendChild(saveBtn);
         return false;
       }
     }
@@ -382,8 +389,19 @@
     // 保存配置到D1数据库
     async function saveConfigToDB() {
       try {
+        // 显示保存状态
+        const saveBtn = document.querySelector('button[onclick="saveConfigToDB()"]');
+        const originalText = saveBtn.textContent;
+        saveBtn.textContent = '保存中...';
+        saveBtn.disabled = true;
+        
         // 获取主要中文源的键
         const primaryChineseKey = document.getElementById('primary-chinese-key').value.trim();
+        const primaryChineseUrl = document.getElementById('primary-chinese').value.trim();
+        
+        if (!primaryChineseKey || !primaryChineseUrl) {
+          throw new Error('主要中文源的键名和URL不能为空');
+        }
         
         // 获取useStdName设置
         const useStdName = document.getElementById('use-std-name').checked ? 1 : 0;
@@ -409,6 +427,13 @@
         // 收集所有源
         const sourceItems = document.querySelectorAll('.source-item');
         const sources = [];
+        const usedKeys = new Set();
+        
+        // 检查主键是否重复
+        if (usedKeys.has(primaryChineseKey)) {
+          throw new Error(`源键名 "${primaryChineseKey}" 重复，请确保每个源的键名唯一`);
+        }
+        usedKeys.add(primaryChineseKey);
         
         for (const item of sourceItems) {
           const keyInput = item.querySelector('.source-key-input');
@@ -418,6 +443,12 @@
           const url = urlInput.value.trim();
           
           if (key && url) {
+            // 检查键是否重复
+            if (usedKeys.has(key)) {
+              throw new Error(`源键名 "${key}" 重复，请确保每个源的键名唯一`);
+            }
+            usedKeys.add(key);
+            
             // 检查源是否已存在
             const checkResponse = await fetch(`/api/config/sources/${encodeURIComponent(key)}`, {
               method: 'HEAD'
@@ -451,11 +482,28 @@
           }
         }
         
-        alert('Configuration saved to database successfully!');
+        // 恢复按钮状态并显示成功消息
+        saveBtn.textContent = '保存成功！';
+        setTimeout(() => {
+          saveBtn.textContent = originalText;
+          saveBtn.disabled = false;
+        }, 2000);
+        
+        // 自动生成新的配置URL
+        generateConfig();
+        
         return true;
       } catch (error) {
         console.error('Error saving config to DB:', error);
         alert(`Failed to save configuration: ${error.message}`);
+        
+        // 恢复按钮状态
+        const saveBtn = document.querySelector('button[onclick="saveConfigToDB()"]');
+        if (saveBtn) {
+          saveBtn.textContent = '保存配置到数据库';
+          saveBtn.disabled = false;
+        }
+        
         return false;
       }
     }
@@ -528,16 +576,52 @@
       params.append('sourceMap', sourceMapParam);
       
       const baseUrl = window.location.origin;
+      const mergedUrl = `${baseUrl}/merged.m3u?${params.toString()}`;
+      const chineseUrl = `${baseUrl}/chinese.m3u?${params.toString()}`;
       
-      document.getElementById('merged-url').value = `${baseUrl}/merged.m3u?${params.toString()}`;
-      document.getElementById('chinese-url').value = `${baseUrl}/chinese.m3u?${params.toString()}`;
+      // 设置URL值和链接
+      document.getElementById('merged-url').value = mergedUrl;
+      document.getElementById('chinese-url').value = chineseUrl;
       
-      document.getElementById('result-section').style.display = 'block';
+      // 创建直接链接按钮
+      const resultSection = document.getElementById('result-section');
+      resultSection.style.display = 'block';
       
-      // 询问是否保存配置到数据库
-      if (confirm('Do you want to save this configuration to the database?')) {
-        saveConfigToDB();
-      }
+      // 添加直接访问链接
+      const mergedLinkDiv = document.createElement('div');
+      mergedLinkDiv.className = 'result-link';
+      mergedLinkDiv.innerHTML = `
+        <label>直接访问合并播放列表:</label>
+        <a href="${mergedUrl}" target="_blank" class="button">打开合并播放列表</a>
+      `;
+      
+      const chineseLinkDiv = document.createElement('div');
+      chineseLinkDiv.className = 'result-link';
+      chineseLinkDiv.innerHTML = `
+        <label>直接访问中文播放列表:</label>
+        <a href="${chineseUrl}" target="_blank" class="button">打开中文播放列表</a>
+      `;
+      
+      // 清除之前的直接链接
+      const existingLinks = resultSection.querySelectorAll('.result-link a.button');
+      existingLinks.forEach(link => link.parentElement.remove());
+      
+      // 添加新链接
+      const resultLinks = resultSection.querySelector('.result-links');
+      resultLinks.appendChild(mergedLinkDiv);
+      resultLinks.appendChild(chineseLinkDiv);
+      
+      // 显示保存配置提示
+      const savePrompt = document.createElement('div');
+      savePrompt.className = 'save-prompt';
+      savePrompt.style.marginTop = '1rem';
+      savePrompt.innerHTML = '<p>您可以点击"保存配置到数据库"按钮将此配置保存到服务器。</p>';
+      
+      // 移除旧提示
+      const oldPrompt = resultSection.querySelector('.save-prompt');
+      if (oldPrompt) oldPrompt.remove();
+      
+      resultSection.appendChild(savePrompt);
     }
     
     // Copy URL to clipboard
@@ -556,6 +640,37 @@
     
     // Initialize with default sources
     window.onload = async function() {
+      // 添加保存配置按钮
+      const configForm = document.querySelector('.config-form');
+      const generateBtn = configForm.querySelector('.generate-btn');
+      
+      // 创建按钮容器
+      const buttonContainer = document.createElement('div');
+      buttonContainer.className = 'button-container';
+      buttonContainer.style.display = 'flex';
+      buttonContainer.style.gap = '1rem';
+      buttonContainer.style.marginTop = '1rem';
+      
+      // 创建保存按钮
+      const saveButton = document.createElement('button');
+      saveButton.textContent = '保存配置到数据库';
+      saveButton.className = 'generate-btn';
+      saveButton.style.backgroundColor = '#4caf50';
+      saveButton.onclick = saveConfigToDB;
+      
+      // 创建新的生成按钮
+      const newGenerateBtn = document.createElement('button');
+      newGenerateBtn.textContent = '生成自定义URL';
+      newGenerateBtn.className = 'generate-btn';
+      newGenerateBtn.onclick = generateConfig;
+      
+      // 添加按钮到容器
+      buttonContainer.appendChild(saveButton);
+      buttonContainer.appendChild(newGenerateBtn);
+      
+      // 替换原始生成按钮
+      generateBtn.parentNode.replaceChild(buttonContainer, generateBtn);
+      
       // 尝试从数据库加载配置
       const loaded = await loadConfigFromDB();
       
@@ -586,16 +701,23 @@
           `;
           sourceList.appendChild(sourceItem);
         });
+        
+        // 添加使用说明
+        const helpText = document.createElement('div');
+        helpText.className = 'help-text';
+        helpText.style.marginTop = '2rem';
+        helpText.style.padding = '1rem';
+        helpText.style.backgroundColor = 'rgba(0,0,0,0.2)';
+        helpText.style.borderRadius = '8px';
+        helpText.innerHTML = `
+          <h3>使用说明</h3>
+          <p>1. 设置主要中文源和其他源</p>
+          <p>2. 点击"生成自定义URL"获取可用的播放列表链接</p>
+          <p>3. 点击"保存配置到数据库"将配置保存到服务器以便下次使用</p>
+        `;
+        
+        configForm.appendChild(helpText);
       }
-      
-      // 添加保存配置按钮
-      const configSection = document.querySelector('.config-section');
-      const saveButton = document.createElement('button');
-      saveButton.textContent = 'Save Configuration to Database';
-      saveButton.className = 'generate-btn';
-      saveButton.style.marginTop = '1rem';
-      saveButton.onclick = saveConfigToDB;
-      configSection.appendChild(saveButton);
     };
   </script>
 </body>

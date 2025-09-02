@@ -168,21 +168,12 @@ export default {
         const configParam = url.searchParams.get('config');
         const useStdName = url.searchParams.get('useStdName') === '1'; // 新参数：控制是否标准化频道名称
         
-        // 定义源URL的键值对映射 - 使用键值对系统简化配置
-        const SOURCE_MAP = {
-          'aktv': 'https://aktv.space/live.m3u',
-          'iptv-org': 'https://iptv-org.github.io/iptv/index.m3u',
-          'm3u888': 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u'
-          // 可以轻松添加更多源映射
-        };
+        // 定义源URL的键值对映射 - 初始为空，将从数据库加载
+        const SOURCE_MAP = {};
         
         let config = {
-          sources: [
-            SOURCE_MAP['aktv'],
-            SOURCE_MAP['iptv-org'],
-            SOURCE_MAP['m3u888']
-          ],
-          primaryChineseSource: SOURCE_MAP['m3u888'],
+          sources: [],
+          primaryChineseSource: '',
           useStdName: true // 默认使用标准化名称
         };
         
@@ -215,10 +206,53 @@ export default {
                 config.primaryChineseSource = SOURCE_MAP[dbConfig.primary_chinese_source] || dbConfig.primary_chinese_source;
               }
             }
+          } else {
+            // 如果没有配置记录，创建默认配置
+            await env.DB.prepare(
+              "INSERT INTO config (id, use_std_name, primary_chinese_source) VALUES ('default', 1, 'm3u888')"
+            ).run();
+            config.useStdName = true;
+            config.primaryChineseSource = 'm3u888';
+            
+            // 创建默认源
+            const defaultSources = [
+              { key: 'aktv', url: 'https://aktv.space/live.m3u', is_active: 1 },
+              { key: 'iptv-org', url: 'https://iptv-org.github.io/iptv/index.m3u', is_active: 1 },
+              { key: 'm3u888', url: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u', is_active: 1 }
+            ];
+            
+            // 批量插入默认源
+            const batch = [];
+            for (const source of defaultSources) {
+              batch.push(
+                env.DB.prepare(
+                  "INSERT INTO sources (source_key, source_url, is_active) VALUES (?, ?, ?)"
+                ).bind(source.key, source.url, source.is_active)
+              );
+              
+              // 同时更新内存中的SOURCE_MAP和config.sources
+              SOURCE_MAP[source.key] = source.url;
+              config.sources.push(source.url);
+            }
+            
+            await env.DB.batch(batch);
           }
         } catch (error) {
           console.error('Error fetching config from D1:', error);
           // 出错时使用默认配置
+          const defaultSources = [
+            { key: 'aktv', url: 'https://aktv.space/live.m3u' },
+            { key: 'iptv-org', url: 'https://iptv-org.github.io/iptv/index.m3u' },
+            { key: 'm3u888', url: 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u' }
+          ];
+          
+          // 使用默认源更新内存中的配置
+          defaultSources.forEach(source => {
+            SOURCE_MAP[source.key] = source.url;
+            config.sources.push(source.url);
+          });
+          
+          config.primaryChineseSource = 'https://m3u888.zabc.net/get.php?username=tg_1660325115&password=abaf9ae6&token=52d66cf8283a9a8f0cac98032fdd1dd891403fd5aeb5bd2afc67ac337c3241be&type=m3u';
         }
         
         // 处理sourceMap参数 - 允许自定义源键值对映射
@@ -566,6 +600,10 @@ export default {
       }
     }
 
+    // 如果ASSETS绑定不存在，返回404响应
+    if (!env.ASSETS) {
+      return new Response('Not found', { status: 404 });
+    }
     return env.ASSETS.fetch(request);
   }
 
