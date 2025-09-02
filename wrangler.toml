@@ -16,6 +16,6 @@ routes = [
   { pattern = "*/*", script = "_worker" }
 ]
 
-[[kv_namespaces]]
+[[env.production.kv_namespaces]]
 binding = "CONFIG_KV"
 id = "f431695090544ae6a9417d316d039e19"
