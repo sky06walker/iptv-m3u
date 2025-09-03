@@ -210,28 +210,35 @@
       <div class="card">
         <h2>The Ultimate Playlist ✨</h2>
         <p>All channels from every source, merged and de-duplicated for the best experience.</p>
-        <a href="/merged.m3u" class="button">Get Merged Playlist</a>
+        <a href="/merged.m3u8" class="button">Get Merged Playlist</a>
       </div>
 
       <!-- Chinese Playlist Card -->
       <div class="card">
         <h2>Just the Chinese Channels 🇨🇳</h2>
         <p>A special playlist filtered to include only high-quality Chinese content.</p>
-        <a href="/chinese.m3u" class="button">Get Chinese Playlist</a>
+        <a href="/chinese.m3u8" class="button">Get Chinese Playlist</a>
+      </div>
+      
+      <!-- Merged All Chinese Source Card -->
+      <div class="card">
+        <h2>All Chinese Channels Combined 🌏</h2>
+        <p>Merged Chinese channels from all sources into one comprehensive playlist.</p>
+        <a href="/chinese.m3u8?mergedChineseOnly=true" class="button">Get Merged Chinese Playlist</a>
       </div>
 
       <!-- Debug Card -->
       <div class="card">
         <h2>Peek Behind the All Channel Curtain 🔬</h2>
         <p>See a full directory of all channels and stats on how your list was built.</p>
-        <a href="/merged.m3u?debug=1" class="button">View Debug Directory</a>
+        <a href="/merged.m3u8?debug=1" class="button">View Debug Directory</a>
       </div>
 
       <!-- Debug Chinese Card -->
       <div class="card">
         <h2>Peek Behind the Chinese Curtain 🔬</h2>
         <p>See a full directory of Chinese channels ONLY and stats on how your list was built.</p>
-        <a href="/chinese.m3u?debug=1" class="button">View Debug Directory</a>
+        <a href="/chinese.m3u8?debug=1" class="button">View Debug Directory</a>
       </div>
     </div>
 
@@ -739,8 +746,8 @@
       params.append('sourceMap', sourceMapParam);
       
       const baseUrl = window.location.origin;
-      const mergedUrl = `${baseUrl}/merged.m3u?${params.toString()}`;
-      const chineseUrl = `${baseUrl}/chinese.m3u?${params.toString()}`;
+      const mergedUrl = `${baseUrl}/merged.m3u8?${params.toString()}`;
+      const chineseUrl = `${baseUrl}/chinese.m3u8?${params.toString()}`;
       
       // 设置URL值和链接
       document.getElementById('merged-url').value = mergedUrl;

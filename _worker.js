@@ -133,12 +133,16 @@ export default {
       return await handleConfigApi(request, env);
     }
 
-    if (url.pathname === '/merged.m3u' || url.pathname === '/chinese.m3u' || url.pathname === '/debug/directory') {
+    if (url.pathname === '/merged.m3u' || url.pathname === '/chinese.m3u' || url.pathname === '/merged.m3u8' || url.pathname === '/chinese.m3u8' || url.pathname === '/debug/directory') {
       try {
         const debug = url.searchParams.get('debug') || url.pathname === '/debug/directory';
-        // Only filter Chinese channels when generating chinese.m3u, debug/directory doesn't filter
-        const isChineseOnly = url.pathname === '/chinese.m3u';
+        // Only filter Chinese channels when generating chinese.m3u/m3u8, debug/directory doesn't filter
+        const isChineseOnly = url.pathname === '/chinese.m3u' || url.pathname === '/chinese.m3u8';
         const useStdNameParam = url.searchParams.get('useStdName');
+        // Add support for merged Chinese source option
+        const mergedChineseOnly = url.searchParams.get('mergedChineseOnly') === 'true';
+        // Determine if M3U8 format is requested
+        const isM3U8Format = url.pathname.endsWith('.m3u8');
 
         // --- START: LOAD CONFIG FROM KV ---
         let dbConfig, dbSources;
@@ -343,44 +347,69 @@ export default {
 
         let all = responses.flatMap(res => parseM3U(res.text, res.source));
 
-        // FIX: The main issue - Chinese channel detection logic
+        // FIXED: Improved Chinese channel detection logic
         all.forEach(e => {
-            const hasChineseChars = /[\u4e00-\u9fa5]/.test(e.name);
+            // Enhanced Chinese character detection - includes more Unicode ranges
+            const hasChineseChars = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(e.name) || 
+                                  /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(e.group || '') ||
+                                  /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(e.tvgId || '');
+            
+            // Check if channel name contains common Chinese keywords
+            const chineseKeywords = ['中文', '中国', '台湾', '香港', '澳门', 'CCTV', 'TVB', '凤凰', '东方', '湖南', '浙江', '江苏', '北京', '上海', '广东', '深圳'];
+            const hasChineseKeywords = chineseKeywords.some(keyword => 
+                (e.name && e.name.includes(keyword)) || 
+                (e.group && e.group.includes(keyword))
+            );
+            
             const isFromPrimarySource = e.source === PRIMARY_CHINESE_SOURCE;
             
             // Initialize the flag to false
             e.isDesignatedChinese = false;
             
-            // If a primary Chinese source is specified, all channels from that source are marked as Chinese
-            // If no primary Chinese source is specified, all channels containing Chinese characters are marked as Chinese
-            if (PRIMARY_CHINESE_SOURCE && PRIMARY_CHINESE_SOURCE.trim() !== '') {
+            // Enhanced logic for Chinese channel detection
+            if (mergedChineseOnly) {
+                // For merged Chinese option, include all channels with Chinese characteristics from any source
+                e.isDesignatedChinese = hasChineseChars || hasChineseKeywords;
+            } else if (PRIMARY_CHINESE_SOURCE && PRIMARY_CHINESE_SOURCE.trim() !== '') {
                 // If a primary Chinese source is specified, channels from that source are Chinese
+                // Also include channels with Chinese characteristics from other sources
                 if (isFromPrimarySource) {
+                    e.isDesignatedChinese = true;
+                } else if (hasChineseChars || hasChineseKeywords) {
                     e.isDesignatedChinese = true;
                 }
             } else {
-                // If no primary Chinese source is specified, all channels with Chinese characters are Chinese
-                if (hasChineseChars) {
+                // If no primary Chinese source is specified, all channels with Chinese characteristics are Chinese
+                if (hasChineseChars || hasChineseKeywords) {
                     e.isDesignatedChinese = true;
                 }
             }
         });
 
-        // FIX: Chinese-only filtering logic
-        if (isChineseOnly) { 
-            if (PRIMARY_CHINESE_SOURCE && PRIMARY_CHINESE_SOURCE.trim() !== '') {
-                // If a primary Chinese source is specified, chinese.m3u should include all channels from that source
-                // Ensure PRIMARY_CHINESE_SOURCE is valid and there are corresponding channels
-                const hasChannelsFromPrimarySource = all.some(e => e.source === PRIMARY_CHINESE_SOURCE);
-                if (hasChannelsFromPrimarySource) {
-                    all = all.filter(e => e.source === PRIMARY_CHINESE_SOURCE);
+        // FIXED: Improved Chinese-only filtering logic
+        if (isChineseOnly || mergedChineseOnly) { 
+            if (mergedChineseOnly) {
+                // For merged Chinese option, include all Chinese channels from all sources
+                all = all.filter(e => e.isDesignatedChinese);
+                console.log(`Merged Chinese mode: Found ${all.length} Chinese channels from all sources`);
+            } else if (PRIMARY_CHINESE_SOURCE && PRIMARY_CHINESE_SOURCE.trim() !== '') {
+                // If a primary Chinese source is specified, include all Chinese channels
+                // but prioritize channels from the primary source
+                const primarySourceChannels = all.filter(e => e.source === PRIMARY_CHINESE_SOURCE);
+                const otherChineseChannels = all.filter(e => e.source !== PRIMARY_CHINESE_SOURCE && e.isDesignatedChinese);
+                
+                if (primarySourceChannels.length > 0) {
+                    // Include all channels from primary source plus other Chinese channels
+                    all = [...primarySourceChannels, ...otherChineseChannels];
+                    console.log(`Chinese mode: Found ${primarySourceChannels.length} channels from primary source and ${otherChineseChannels.length} Chinese channels from other sources`);
                 } else {
-                    console.warn(`Warning: No channels found from primary Chinese source ${PRIMARY_CHINESE_SOURCE}, using default Chinese detection logic`);
+                    console.warn(`Warning: No channels found from primary Chinese source ${PRIMARY_CHINESE_SOURCE}, using all Chinese channels`);
                     all = all.filter(e => e.isDesignatedChinese);
                 }
             } else {
                 // If no primary Chinese source is specified, only include channels marked as Chinese
-                all = all.filter(e => e.isDesignatedChinese); 
+                all = all.filter(e => e.isDesignatedChinese);
+                console.log(`Chinese mode: Found ${all.length} Chinese channels using character detection`);
             }
         }
 
@@ -486,11 +515,12 @@ export default {
             return new Response(body, { headers: { 'content-type': 'text/plain; charset=utf-8' } });
         }
         
-        const filename = isChineseOnly ? 'chinese.m3u' : 'merged.m3u';
+        const filename = isChineseOnly ? (isM3U8Format ? 'chinese.m3u8' : 'chinese.m3u') : (isM3U8Format ? 'merged.m3u8' : 'merged.m3u');
         const body = serialize(unique);
+        const contentType = isM3U8Format ? 'application/vnd.apple.mpegurl; charset=utf-8' : 'application/x-mpegURL; charset=utf-8';
         const resp = new Response(body, {
           headers: {
-            'content-type': 'application/x-mpegURL; charset=utf-8',
+            'content-type': contentType,
             'content-disposition': `attachment; filename="${filename}"`,
             'cache-control': 'public, max-age=600, s-maxage=3600'
           }
